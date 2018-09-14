@@ -55,7 +55,7 @@ Return Value:
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
     pnpPowerCallbacks.EvtDevicePrepareHardware = MixmanDM2EvtDevicePrepareHardware;
-	pnpPowerCallbacks.EvtDeviceD0Entry = MixmanDM2EvtDeviceD0Entry;
+    pnpPowerCallbacks.EvtDeviceD0Entry = MixmanDM2EvtDeviceD0Entry;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
@@ -77,7 +77,7 @@ Return Value:
         //
         // Initialize the context.
         //
-		RtlZeroMemory(deviceContext, sizeof(*deviceContext));
+        RtlZeroMemory(deviceContext, sizeof(*deviceContext));
 
         //
         // Create a device interface so that applications can find and talk
@@ -103,33 +103,33 @@ Return Value:
 
 NTSTATUS
 MixmanDM2EvtDeviceD0Entry(
-	WDFDEVICE Device,
-	WDF_POWER_DEVICE_STATE PreviousState
+    WDFDEVICE Device,
+    WDF_POWER_DEVICE_STATE PreviousState
 )
 {
-	NTSTATUS status;
-	PDEVICE_CONTEXT deviceContext;
-	WDFREQUEST request; 
-	WDF_MEMORY_DESCRIPTOR  memoryDescriptor;
-	UINT8  buf[4] = { 0x00, 0x00, 0xff, 0xff };
-	ULONG bytesWritten;
+    NTSTATUS status;
+    PDEVICE_CONTEXT deviceContext;
+    WDFREQUEST request; 
+    WDF_MEMORY_DESCRIPTOR  memoryDescriptor;
+    UINT8  buf[4] = { 0x00, 0x00, 0xff, 0xff };
+    ULONG bytesWritten;
 
-	UNREFERENCED_PARAMETER(PreviousState);
+    UNREFERENCED_PARAMETER(PreviousState);
 
-	deviceContext = DeviceGetContext(Device);
+    deviceContext = DeviceGetContext(Device);
 
-	WdfRequestCreate(WDF_NO_OBJECT_ATTRIBUTES, NULL, &request);
-	WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(&memoryDescriptor,
-		(PVOID)buf,
-		sizeof(buf));
+    WdfRequestCreate(WDF_NO_OBJECT_ATTRIBUTES, NULL, &request);
+    WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(&memoryDescriptor,
+        (PVOID)buf,
+        sizeof(buf));
 
-	status = WdfUsbTargetPipeWriteSynchronously(deviceContext->OutPipe, request, NULL, &memoryDescriptor, &bytesWritten);
+    status = WdfUsbTargetPipeWriteSynchronously(deviceContext->OutPipe, request, NULL, &memoryDescriptor, &bytesWritten);
 
-	if (NT_SUCCESS(status)) {
-		status = WdfRequestGetStatus(request);
-	}
+    if (NT_SUCCESS(status)) {
+        status = WdfRequestGetStatus(request);
+    }
 
-	return STATUS_SUCCESS;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -160,11 +160,11 @@ Return Value:
     PDEVICE_CONTEXT pDeviceContext;
     WDF_USB_DEVICE_CREATE_CONFIG createParams;
     WDF_USB_DEVICE_SELECT_CONFIG_PARAMS configParams;
-	USHORT len;
-	PUSB_CONFIGURATION_DESCRIPTOR descriptor;
-	PURB urb;
-	USBD_INTERFACE_LIST_ENTRY interfaces[2];
-	PUSB_ENDPOINT_DESCRIPTOR brokenEndpoint;
+    USHORT len;
+    PUSB_CONFIGURATION_DESCRIPTOR descriptor;
+    PURB urb;
+    USBD_INTERFACE_LIST_ENTRY interfaces[2];
+    PUSB_ENDPOINT_DESCRIPTOR brokenEndpoint;
 
     UNREFERENCED_PARAMETER(ResourceList);
     UNREFERENCED_PARAMETER(ResourceListTranslated);
@@ -217,39 +217,39 @@ Return Value:
     // setting of each interface
     //
 
-	WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, NULL, &len);
-	descriptor = ExAllocatePool(NonPagedPool, len);
-	WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, descriptor, &len);
-	RtlZeroMemory(interfaces, sizeof(interfaces));
-	interfaces[0].InterfaceDescriptor = (PUSB_INTERFACE_DESCRIPTOR)(descriptor + 1);
-	descriptor->MaxPower = 49;
+    WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, NULL, &len);
+    descriptor = ExAllocatePool(NonPagedPool, len);
+    WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, descriptor, &len);
+    RtlZeroMemory(interfaces, sizeof(interfaces));
+    interfaces[0].InterfaceDescriptor = (PUSB_INTERFACE_DESCRIPTOR)(descriptor + 1);
+    descriptor->MaxPower = 49;
 
-	// The second endpoint describes a bulk device, which is forbidden
-	// in low speed devices. Here, we force the second endpoint (OUT) 
-	// to use interrupt mode.
-	brokenEndpoint = (PUSB_ENDPOINT_DESCRIPTOR)(interfaces[0].InterfaceDescriptor + 1) + 1;
-	brokenEndpoint->bmAttributes = 0x03; //interrupt
-	brokenEndpoint->bInterval = 0x0a; //interval between frames (10ms)
+    // The second endpoint describes a bulk device, which is forbidden
+    // in low speed devices. Here, we force the second endpoint (OUT) 
+    // to use interrupt mode.
+    brokenEndpoint = (PUSB_ENDPOINT_DESCRIPTOR)(interfaces[0].InterfaceDescriptor + 1) + 1;
+    brokenEndpoint->bmAttributes = 0x03; //interrupt
+    brokenEndpoint->bInterval = 0x0a; //interval between frames (10ms)
 
-	urb = USBD_CreateConfigurationRequestEx(descriptor, interfaces);
-	WDF_USB_DEVICE_SELECT_CONFIG_PARAMS_INIT_URB(&configParams, urb);
+    urb = USBD_CreateConfigurationRequestEx(descriptor, interfaces);
+    WDF_USB_DEVICE_SELECT_CONFIG_PARAMS_INIT_URB(&configParams, urb);
     status = WdfUsbTargetDeviceSelectConfig(pDeviceContext->UsbDevice,
                                             WDF_NO_OBJECT_ATTRIBUTES,
                                             &configParams
                                             );
 
-	ExFreePool(urb);
-	ExFreePool(descriptor);
-	
+    ExFreePool(urb);
+    ExFreePool(descriptor);
+    
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
                     "WdfUsbTargetDeviceSelectConfig failed 0x%x", status);
         return status;
     }
 
-	pDeviceContext->UsbInterface = WdfUsbTargetDeviceGetInterface(pDeviceContext->UsbDevice, 0);
-	pDeviceContext->InPipe = WdfUsbInterfaceGetConfiguredPipe(pDeviceContext->UsbInterface, 0, NULL);
-	pDeviceContext->OutPipe = WdfUsbInterfaceGetConfiguredPipe(pDeviceContext->UsbInterface, 1, NULL);
+    pDeviceContext->UsbInterface = WdfUsbTargetDeviceGetInterface(pDeviceContext->UsbDevice, 0);
+    pDeviceContext->InPipe = WdfUsbInterfaceGetConfiguredPipe(pDeviceContext->UsbInterface, 0, NULL);
+    pDeviceContext->OutPipe = WdfUsbInterfaceGetConfiguredPipe(pDeviceContext->UsbInterface, 1, NULL);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
