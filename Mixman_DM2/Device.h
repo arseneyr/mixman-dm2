@@ -14,6 +14,7 @@ Environment:
 
 --*/
 
+#include <wdfminiport.h>
 #include "public.h"
 
 EXTERN_C_START
@@ -43,14 +44,21 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
 //
 NTSTATUS
 MixmanDM2CreateDevice(
-    _Inout_ PWDFDEVICE_INIT DeviceInit
-    );
+    PKSDEVICE Device
+);
 
 //
 // Function to select the device's USB configuration and get a WDFUSBDEVICE
 // handle
 //
-EVT_WDF_DEVICE_PREPARE_HARDWARE MixmanDM2EvtDevicePrepareHardware;
+NTSTATUS
+MixmanDM2DispatchPnpStart(
+    PKSDEVICE Device,
+    PIRP Irp,
+    PCM_RESOURCE_LIST TranslatedResourceList,
+    PCM_RESOURCE_LIST UntranslatedResourceList
+);
+
 EVT_WDF_DEVICE_D0_ENTRY MixmanDM2EvtDeviceD0Entry;
 
 EXTERN_C_END

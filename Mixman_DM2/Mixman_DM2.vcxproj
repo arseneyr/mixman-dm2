@@ -286,7 +286,7 @@
       <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib;ks.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='no-deploy|x64'">
@@ -298,7 +298,7 @@
       <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib;ks.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -309,7 +309,7 @@
       <WppKernelMode>true</WppKernelMode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib;ks.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">

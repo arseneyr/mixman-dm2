@@ -19,13 +19,13 @@ Environment:
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, MixmanDM2CreateDevice)
-#pragma alloc_text (PAGE, MixmanDM2EvtDevicePrepareHardware)
+#pragma alloc_text (PAGE, MixmanDM2DispatchPnpStart)
 #endif
 
 
 NTSTATUS
 MixmanDM2CreateDevice(
-    _Inout_ PWDFDEVICE_INIT DeviceInit
+    PKSDEVICE Device
     )
 /*++
 
@@ -45,7 +45,6 @@ Return Value:
 
 --*/
 {
-    WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
     WDF_OBJECT_ATTRIBUTES   deviceAttributes;
     PDEVICE_CONTEXT deviceContext;
     WDFDEVICE device;
@@ -53,14 +52,15 @@ Return Value:
 
     PAGED_CODE();
 
-    WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
-    pnpPowerCallbacks.EvtDevicePrepareHardware = MixmanDM2EvtDevicePrepareHardware;
-    pnpPowerCallbacks.EvtDeviceD0Entry = MixmanDM2EvtDeviceD0Entry;
-    WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
-
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
 
-    status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
+    status = WdfDeviceMiniportCreate(
+        WdfGetDriver(),
+        &deviceAttributes,
+        Device->FunctionalDeviceObject,
+        Device->NextDeviceObject,
+        Device->PhysicalDeviceObject,
+        &device);
 
     if (NT_SUCCESS(status)) {
         //
@@ -80,21 +80,9 @@ Return Value:
         RtlZeroMemory(deviceContext, sizeof(*deviceContext));
 
         //
-        // Create a device interface so that applications can find and talk
-        // to us.
+        // Store the WDF device object in the KS device context.
         //
-        status = WdfDeviceCreateDeviceInterface(
-            device,
-            &GUID_DEVINTERFACE_MixmanDM2,
-            NULL // ReferenceString
-            );
-
-        if (NT_SUCCESS(status)) {
-            //
-            // Initialize the I/O Package and any Queues
-            //
-            status = MixmanDM2QueueInitialize(device);
-        }
+        Device->Context = device;
     }
 
     return status;
@@ -132,12 +120,14 @@ MixmanDM2EvtDeviceD0Entry(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-MixmanDM2EvtDevicePrepareHardware(
-    _In_ WDFDEVICE Device,
-    _In_ WDFCMRESLIST ResourceList,
-    _In_ WDFCMRESLIST ResourceListTranslated
-    )
+
+NTSTATUS 
+MixmanDM2DispatchPnpStart(
+    PKSDEVICE Device,
+    PIRP Irp,
+    PCM_RESOURCE_LIST TranslatedResourceList,
+    PCM_RESOURCE_LIST UntranslatedResourceList
+)
 /*++
 
 Routine Description:
@@ -157,24 +147,29 @@ Return Value:
 --*/
 {
     NTSTATUS status;
+    WDFDEVICE wdfDevice;
     PDEVICE_CONTEXT pDeviceContext;
     WDF_USB_DEVICE_CREATE_CONFIG createParams;
     WDF_USB_DEVICE_SELECT_CONFIG_PARAMS configParams;
     USHORT len;
-    PUSB_CONFIGURATION_DESCRIPTOR descriptor;
-    PURB urb;
-    USBD_INTERFACE_LIST_ENTRY interfaces[2];
+    PUCHAR validationFailure;
+    PUSB_CONFIGURATION_DESCRIPTOR configDescriptor = NULL;
+    PUSB_INTERFACE_DESCRIPTOR interfaceDescriptor;
+    PURB urb = NULL;
+    USBD_INTERFACE_LIST_ENTRY interfaces[2] = { {0} };
     PUSB_ENDPOINT_DESCRIPTOR brokenEndpoint;
 
-    UNREFERENCED_PARAMETER(ResourceList);
-    UNREFERENCED_PARAMETER(ResourceListTranslated);
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(TranslatedResourceList);
+    UNREFERENCED_PARAMETER(UntranslatedResourceList);
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     status = STATUS_SUCCESS;
-    pDeviceContext = DeviceGetContext(Device);
+    wdfDevice = (WDFDEVICE)Device->Context;
+    pDeviceContext = DeviceGetContext(wdfDevice);
 
     //
     // Create a USB device handle so that we can communicate with the
@@ -199,7 +194,7 @@ Return Value:
                                          USBD_CLIENT_CONTRACT_VERSION_602
                                          );
 
-        status = WdfUsbTargetDeviceCreateWithParameters(Device,
+        status = WdfUsbTargetDeviceCreateWithParameters(wdfDevice,
                                                     &createParams,
                                                     WDF_NO_OBJECT_ATTRIBUTES,
                                                     &pDeviceContext->UsbDevice
@@ -208,7 +203,8 @@ Return Value:
         if (!NT_SUCCESS(status)) {
             TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
                         "WdfUsbTargetDeviceCreateWithParameters failed 0x%x", status);
-            return status;
+            
+            goto Cleanup;
         }
     }
 
@@ -217,34 +213,95 @@ Return Value:
     // setting of each interface
     //
 
-    WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, NULL, &len);
-    descriptor = ExAllocatePool(NonPagedPool, len);
-    WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, descriptor, &len);
+    status = WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, NULL, &len);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
+            "WdfUsbTargetDeviceRetrieveConfigDescriptor failed 0x%x", status);
+
+        goto Cleanup;
+    }
+
+    configDescriptor = ExAllocatePoolWithTag(PagedPool, len, DM2_POOL_TAG);
+    if (configDescriptor == NULL) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Cleanup;
+    }
+
+    status = WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, configDescriptor, &len);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
+            "WdfUsbTargetDeviceRetrieveConfigDescriptor failed 0x%x", status);
+
+        goto Cleanup;
+    }
+
+    if (USBD_ValidateConfigurationDescriptor(
+            configDescriptor,
+            len,
+            3,
+            &validationFailure,
+            DM2_POOL_TAG) != USBD_STATUS_SUCCESS) {
+
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
+            "USBD_ValidateConfigurationDescriptor failed at offest %x with status 0x%x", 
+            (UINT32)(validationFailure - (PUCHAR)configDescriptor), 
+            status);
+
+        status = STATUS_DEVICE_CONFIGURATION_ERROR;
+        goto Cleanup;
+    }
+
+    interfaceDescriptor = USBD_ParseConfigurationDescriptorEx(
+        configDescriptor,
+        configDescriptor,
+        0,
+        -1,
+        0xff,
+        0xff,
+        0xff);
+
+    if (interfaceDescriptor == NULL ||
+        interfaceDescriptor->bNumEndpoints != 2) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
+            "USBD_ParseConfigurationDescriptorEx found no compatible interfaces");
+
+        status = STATUS_DEVICE_CONFIGURATION_ERROR;
+        goto Cleanup;
+    }
+
     RtlZeroMemory(interfaces, sizeof(interfaces));
-    interfaces[0].InterfaceDescriptor = (PUSB_INTERFACE_DESCRIPTOR)(descriptor + 1);
-    descriptor->MaxPower = 49;
+    interfaces[0].InterfaceDescriptor = interfaceDescriptor;
+    
+    // The config descriptor doesn't specify a power draw. Arbitrarily set to 98mA.
+    configDescriptor->MaxPower = 49;
 
     // The second endpoint describes a bulk device, which is forbidden
     // in low speed devices. Here, we force the second endpoint (OUT) 
     // to use interrupt mode.
-    brokenEndpoint = (PUSB_ENDPOINT_DESCRIPTOR)(interfaces[0].InterfaceDescriptor + 1) + 1;
-    brokenEndpoint->bmAttributes = 0x03; //interrupt
-    brokenEndpoint->bInterval = 0x0a; //interval between frames (10ms)
+    brokenEndpoint = (PUSB_ENDPOINT_DESCRIPTOR)(interfaceDescriptor) + 1;
+    if (brokenEndpoint->bEndpointAddress == 0x02 &&     // OUT
+        brokenEndpoint->bmAttributes == 0x02) {         // Bulk
+        brokenEndpoint->bmAttributes = 0x03;            //interrupt
+        brokenEndpoint->bInterval = 0x0a;               //interval between frames (10ms)
+    }
 
-    urb = USBD_CreateConfigurationRequestEx(descriptor, interfaces);
+    urb = USBD_CreateConfigurationRequestEx(configDescriptor, interfaces);
+    if (urb == NULL) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Cleanup;
+    }
+
     WDF_USB_DEVICE_SELECT_CONFIG_PARAMS_INIT_URB(&configParams, urb);
     status = WdfUsbTargetDeviceSelectConfig(pDeviceContext->UsbDevice,
                                             WDF_NO_OBJECT_ATTRIBUTES,
                                             &configParams
                                             );
-
-    ExFreePool(urb);
-    ExFreePool(descriptor);
     
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
                     "WdfUsbTargetDeviceSelectConfig failed 0x%x", status);
-        return status;
+
+        goto Cleanup;
     }
 
     pDeviceContext->UsbInterface = WdfUsbTargetDeviceGetInterface(pDeviceContext->UsbDevice, 0);
@@ -253,5 +310,12 @@ Return Value:
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
+Cleanup:
+    if (configDescriptor != NULL) {
+        ExFreePoolWithTag(configDescriptor, DM2_POOL_TAG);
+    }
+    if (urb != NULL) {
+        ExFreePoolWithTag(urb, DM2_POOL_TAG);
+    }
     return status;
 }

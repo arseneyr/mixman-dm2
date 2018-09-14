@@ -19,10 +19,34 @@ Environment:
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, MixmanDM2EvtDeviceAdd)
-#pragma alloc_text (PAGE, MixmanDM2EvtDriverContextCleanup)
+#pragma alloc_text (PAGE, MixmanDM2EvtDriverUnload)
 #endif
 
+
+KSDEVICE_DISPATCH
+CaptureDeviceDispatch = {
+    MixmanDM2CreateDevice,                  // Pnp Add Device
+    MixmanDM2DispatchPnpStart,              // Pnp Start
+    NULL,                                   // Post-Start
+    NULL,                                   // Pnp Query Stop
+    NULL,                                   // Pnp Cancel Stop
+    NULL,                                   // Pnp Stop
+    NULL,                                   // Pnp Query Remove
+    NULL,                                   // Pnp Cancel Remove
+    NULL,                                   // Pnp Remove
+    NULL,                                   // Pnp Query Capabilities
+    NULL,                                   // Pnp Surprise Removal
+    NULL,                                   // Power Query Power
+    NULL,                                   // Power Set Power
+    NULL                                    // Pnp Query Interface
+};
+
+KSDEVICE_DESCRIPTOR
+CaptureDeviceDescriptor = {
+    &CaptureDeviceDispatch,
+    0,
+    NULL
+};
 
 NTSTATUS
 DriverEntry(
@@ -57,7 +81,6 @@ Return Value:
 {
     WDF_DRIVER_CONFIG config;
     NTSTATUS status;
-    WDF_OBJECT_ATTRIBUTES attributes;
 
     //
     // Initialize WPP Tracing
@@ -70,73 +93,45 @@ Return Value:
     // Register a cleanup callback so that we can call WPP_CLEANUP when
     // the framework driver object is deleted during driver unload.
     //
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.EvtCleanupCallback = MixmanDM2EvtDriverContextCleanup;
 
     WDF_DRIVER_CONFIG_INIT(&config,
-                           MixmanDM2EvtDeviceAdd
+                           NULL
                            );
+
+    config.DriverInitFlags = WdfDriverInitNoDispatchOverride;
+    config.EvtDriverUnload = MixmanDM2EvtDriverUnload;
 
     status = WdfDriverCreate(DriverObject,
                              RegistryPath,
-                             &attributes,
+                             WDF_NO_OBJECT_ATTRIBUTES,
                              &config,
                              WDF_NO_HANDLE
                              );
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfDriverCreate failed %!STATUS!", status);
-        WPP_CLEANUP(DriverObject);
-        return status;
+        goto Cleanup;
+    }
+
+    status = KsInitializeDriver(DriverObject, RegistryPath, &CaptureDeviceDescriptor);
+    if (!NT_SUCCESS(status)) {
+        goto Cleanup;
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
-    return status;
-}
-
-NTSTATUS
-MixmanDM2EvtDeviceAdd(
-    _In_    WDFDRIVER       Driver,
-    _Inout_ PWDFDEVICE_INIT DeviceInit
-    )
-/*++
-Routine Description:
-
-    EvtDeviceAdd is called by the framework in response to AddDevice
-    call from the PnP manager. We create and initialize a device object to
-    represent a new instance of the device.
-
-Arguments:
-
-    Driver - Handle to a framework driver object created in DriverEntry
-
-    DeviceInit - Pointer to a framework-allocated WDFDEVICE_INIT structure.
-
-Return Value:
-
-    NTSTATUS
-
---*/
-{
-    NTSTATUS status;
-
-    UNREFERENCED_PARAMETER(Driver);
-
-    PAGED_CODE();
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
-
-    status = MixmanDM2CreateDevice(DeviceInit);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+Cleanup:
+    if (!NT_SUCCESS(status)) {
+        WPP_CLEANUP(DriverObject);
+    }
 
     return status;
 }
+
 
 VOID
-MixmanDM2EvtDriverContextCleanup(
-    _In_ WDFOBJECT DriverObject
+MixmanDM2EvtDriverUnload(
+    _In_ WDFDRIVER Driver
     )
 /*++
 Routine Description:
@@ -153,7 +148,6 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(DriverObject);
 
     PAGED_CODE ();
 
@@ -162,6 +156,6 @@ Return Value:
     //
     // Stop WPP Tracing
     //
-    WPP_CLEANUP( WdfDriverWdmGetDriverObject( (WDFDRIVER) DriverObject) );
+    WPP_CLEANUP( WdfDriverWdmGetDriverObject(Driver));
 
 }

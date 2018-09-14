@@ -20,6 +20,8 @@ Environment:
 #include <usbdlib.h>
 #include <wdfusb.h>
 #include <initguid.h>
+#include <windef.h>
+#include <ks.h>
 
 #include "device.h"
 #include "queue.h"
@@ -31,8 +33,9 @@ EXTERN_C_START
 // WDFDRIVER Events
 //
 
+#define DM2_POOL_TAG 'd2mD'
+
 DRIVER_INITIALIZE DriverEntry;
-EVT_WDF_DRIVER_DEVICE_ADD MixmanDM2EvtDeviceAdd;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP MixmanDM2EvtDriverContextCleanup;
+EVT_WDF_DRIVER_UNLOAD MixmanDM2EvtDriverUnload;
 
 EXTERN_C_END
