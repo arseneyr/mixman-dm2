@@ -1,0 +1,87 @@
+;
+; Mixman_DM2.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=USBDevice
+ClassGuid={88BAE032-5A81-49f0-BC3D-A4FF138216D6}
+Provider=%ManufacturerName%
+CatalogFile=Mixman_DM2.cat
+DriverVer=
+
+[DestinationDirs]
+DefaultDestDir = 12
+Mixman_DM2_Device_CoInstaller_CopyFiles = 11
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+Mixman_DM2.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%Mixman_DM2.DeviceDesc%=Mixman_DM2_Device, USB\VID_0665&PID_0301
+
+[Mixman_DM2_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+Mixman_DM2.sys
+
+[Mixman_DM2_Device.NT.HW]
+AddReg=Mixman_DM2_AddReg
+
+[Mixman_DM2_AddReg]
+; By default, USBDevice class uses iProduct descriptor to name the device in
+; Device Manager on Windows 8 and higher.
+; Uncomment for this device to use %DeviceName% on Windows 8 and higher:
+;HKR,,FriendlyName,,%Mixman_DM2.DeviceDesc%
+
+;-------------- Service installation
+[Mixman_DM2_Device.NT.Services]
+AddService = Mixman_DM2,%SPSVCINST_ASSOCSERVICE%, Mixman_DM2_Service_Inst
+
+; -------------- Mixman_DM2 driver install sections
+[Mixman_DM2_Service_Inst]
+DisplayName    = %Mixman_DM2.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\Mixman_DM2.sys
+
+;
+;--- Mixman_DM2_Device Coinstaller installation ------
+;
+
+[Mixman_DM2_Device.NT.CoInstallers]
+AddReg=Mixman_DM2_Device_CoInstaller_AddReg
+CopyFiles=Mixman_DM2_Device_CoInstaller_CopyFiles
+
+[Mixman_DM2_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[Mixman_DM2_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[Mixman_DM2_Device.NT.Wdf]
+KmdfService =  Mixman_DM2, Mixman_DM2_wdfsect
+[Mixman_DM2_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+ClassName="Universal Serial Bus devices"
+DiskName = "Mixman_DM2 Installation Disk"
+Mixman_DM2.DeviceDesc = "Mixman_DM2 Device"
+Mixman_DM2.SVCDESC = "Mixman_DM2 Service"
+REG_MULTI_SZ = 0x00010000
