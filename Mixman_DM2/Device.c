@@ -168,6 +168,10 @@ Return Value:
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     status = STATUS_SUCCESS;
+    if (Device->Started) {
+        goto Cleanup;
+    }
+
     wdfDevice = (WDFDEVICE)Device->Context;
     pDeviceContext = DeviceGetContext(wdfDevice);
 
@@ -214,7 +218,7 @@ Return Value:
     //
 
     status = WdfUsbTargetDeviceRetrieveConfigDescriptor(pDeviceContext->UsbDevice, NULL, &len);
-    if (!NT_SUCCESS(status)) {
+    if (status != STATUS_BUFFER_TOO_SMALL) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
             "WdfUsbTargetDeviceRetrieveConfigDescriptor failed 0x%x", status);
 
@@ -243,9 +247,8 @@ Return Value:
             DM2_POOL_TAG) != USBD_STATUS_SUCCESS) {
 
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
-            "USBD_ValidateConfigurationDescriptor failed at offest %x with status 0x%x", 
-            (UINT32)(validationFailure - (PUCHAR)configDescriptor), 
-            status);
+            "USBD_ValidateConfigurationDescriptor failed at offest %x",
+            (UINT32)(validationFailure - (PUCHAR)configDescriptor));
 
         status = STATUS_DEVICE_CONFIGURATION_ERROR;
         goto Cleanup;
@@ -254,11 +257,11 @@ Return Value:
     interfaceDescriptor = USBD_ParseConfigurationDescriptorEx(
         configDescriptor,
         configDescriptor,
-        0,
-        -1,
-        0xff,
-        0xff,
-        0xff);
+        0,      // Interface #0
+        -1,     // Alterate modes don't matter
+        0xff,   // Vendor-defined
+        0xff,   // Vendor-defined
+        0xff);  // Vendor-defined
 
     if (interfaceDescriptor == NULL ||
         interfaceDescriptor->bNumEndpoints != 2) {
@@ -278,9 +281,11 @@ Return Value:
     // The second endpoint describes a bulk device, which is forbidden
     // in low speed devices. Here, we force the second endpoint (OUT) 
     // to use interrupt mode.
-    brokenEndpoint = (PUSB_ENDPOINT_DESCRIPTOR)(interfaceDescriptor) + 1;
-    if (brokenEndpoint->bEndpointAddress == 0x02 &&     // OUT
+    brokenEndpoint = (PUSB_ENDPOINT_DESCRIPTOR)(interfaceDescriptor + 1) + 1;
+    if ((UINT_PTR)brokenEndpoint + sizeof(USB_ENDPOINT_DESCRIPTOR) <= (UINT_PTR)configDescriptor + len &&
+        brokenEndpoint->bEndpointAddress == 0x02 &&     // OUT
         brokenEndpoint->bmAttributes == 0x02) {         // Bulk
+
         brokenEndpoint->bmAttributes = 0x03;            //interrupt
         brokenEndpoint->bInterval = 0x0a;               //interval between frames (10ms)
     }
@@ -317,5 +322,6 @@ Cleanup:
     if (urb != NULL) {
         ExFreePoolWithTag(urb, DM2_POOL_TAG);
     }
+
     return status;
 }

@@ -2,86 +2,80 @@
 ; Mixman_DM2.inf
 ;
 
-[Version]
-Signature="$WINDOWS NT$"
-Class=USBDevice
-ClassGuid={88BAE032-5A81-49f0-BC3D-A4FF138216D6}
-Provider=%ManufacturerName%
-CatalogFile=Mixman_DM2.cat
-DriverVer=
+; Copyright (c) Microsoft Corporation.  All rights reserved.
+;
+; avssamp.INF -- This file contains installation information for the filter-based
+;                AVStream sample driver avssamp.sys
+;           
+; Note:
+;    
+;     This INF expects the following hierarchy in the installation folder:
+;
+;     \
+;         avssamp.inf
+;         avssamp.sys
+;
 
-[DestinationDirs]
-DefaultDestDir = 12
-Mixman_DM2_Device_CoInstaller_CopyFiles = 11
+[Version]
+Signature="$Windows NT$"
+Class=USBDevice
+ClassGuid={88bae032-5a81-49f0-bc3d-a4ff138216d6}
+Provider=%ProviderName%
+CatalogFile=Mixman_DM2.cat
+DriverVer=09/30/2004,1.0.0.0
 
 [SourceDisksNames]
-1 = %DiskName%,,,""
+1000 = %cdname%,,,
 
 [SourceDisksFiles]
-Mixman_DM2.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+Mixman_DM2.sys = 1000
 
-;*****************************************
-; Install Section
-;*****************************************
+[ControlFlags]
+ExcludeFromSelect=*
+
+[DestinationDirs]
+Mixman_DM2.CopyFiles=12
 
 [Manufacturer]
 %ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%Mixman_DM2.DeviceDesc%=Mixman_DM2_Device, USB\VID_0665&PID_0301
+%Mixman_DM2.DeviceDesc%=Mixman_DM2, USB\VID_0665&PID_0301
 
-[Mixman_DM2_Device.NT]
-CopyFiles=Drivers_Dir
+[Mixman_DM2.NT]
+include=ks.inf,kscaptur.inf
+needs=KS.Registration,KSCAPTUR.Registration.NT
+CopyFiles=Mixman_DM2.CopyFiles
 
-[Drivers_Dir]
+[Mixman_DM2.CopyFiles]
 Mixman_DM2.sys
 
-[Mixman_DM2_Device.NT.HW]
-AddReg=Mixman_DM2_AddReg
+[Mixman_DM2.NT.Services]
+AddService=Mixman_DM2, 0x00000002, Mixman_DM2.ServiceInstall
 
-[Mixman_DM2_AddReg]
-; By default, USBDevice class uses iProduct descriptor to name the device in
-; Device Manager on Windows 8 and higher.
-; Uncomment for this device to use %DeviceName% on Windows 8 and higher:
-;HKR,,FriendlyName,,%Mixman_DM2.DeviceDesc%
-
-;-------------- Service installation
-[Mixman_DM2_Device.NT.Services]
-AddService = Mixman_DM2,%SPSVCINST_ASSOCSERVICE%, Mixman_DM2_Service_Inst
-
-; -------------- Mixman_DM2 driver install sections
-[Mixman_DM2_Service_Inst]
-DisplayName    = %Mixman_DM2.SVCDESC%
-ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
-StartType      = 3               ; SERVICE_DEMAND_START
-ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\Mixman_DM2.sys
-
-;
-;--- Mixman_DM2_Device Coinstaller installation ------
-;
-
-[Mixman_DM2_Device.NT.CoInstallers]
-AddReg=Mixman_DM2_Device_CoInstaller_AddReg
-CopyFiles=Mixman_DM2_Device_CoInstaller_CopyFiles
-
-[Mixman_DM2_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[Mixman_DM2_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[Mixman_DM2_Device.NT.Wdf]
-KmdfService =  Mixman_DM2, Mixman_DM2_wdfsect
-[Mixman_DM2_wdfsect]
-KmdfLibraryVersion = $KMDFVERSION$
+[Mixman_DM2.ServiceInstall]
+DisplayName=%Mixman_DM2.DeviceDesc%
+ServiceType=%SERVICE_KERNEL_DRIVER%
+StartType=%SERVICE_DEMAND_START%
+ErrorControl=%SERVICE_ERROR_NORMAL%
+ServiceBinary=%12%\Mixman_DM2.sys
 
 [Strings]
-SPSVCINST_ASSOCSERVICE= 0x00000002
-ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
-ClassName="Universal Serial Bus devices"
-DiskName = "Mixman_DM2 Installation Disk"
-Mixman_DM2.DeviceDesc = "Mixman_DM2 Device"
-Mixman_DM2.SVCDESC = "Mixman_DM2 Service"
-REG_MULTI_SZ = 0x00010000
+; non-localizable
+Proxy.CLSID="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
+KSCATEGORY_CAPTURE="{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
+KSSTRING_Filter="{9B365890-165F-11D0-A195-0020AFD156E4}"
+
+SERVICE_KERNEL_DRIVER=1
+SERVICE_DEMAND_START=3
+SERVICE_ERROR_NORMAL=1
+REG_EXPAND_SZ=0x00020000
+REG_DWORD=0x00010001
+
+;localizable
+ProviderName="TODO-Set-Provider"
+ManufacturerName="TODO-Set-Manufacturer"
+Mixman_DM2.DeviceDesc="Mixman DM2"
+Mixman_DM2.Reader.FriendlyName="Mixman_DM2 Source"
+
+cdname="Disk 1"
