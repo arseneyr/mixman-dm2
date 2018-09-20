@@ -14,10 +14,56 @@ Environment:
 
 --*/
 
-#include <wdfminiport.h>
-#include "public.h"
+#ifndef DEVICE_H
+#define DEVICE_H
 
-EXTERN_C_START
+#include "Driver.h"
+#include "public.h"
+#include <wdfminiport.h>
+#define _NEW_DELETE_OPERATORS_
+#include <stdunk.h>
+
+class CMiniportDM2
+    : public IMiniportMidi,
+    public IPowerNotify,
+    public CUnknown
+{
+private:
+    WDFUSBPIPE      m_InPipe;
+    WDFUSBPIPE      m_OutPipe;
+    WDFDEVICE       m_WdfDevice;
+    WDFUSBDEVICE    m_UsbDevice;
+    WDFUSBINTERFACE m_UsbInterface;
+
+    static KSDATARANGE_MUSIC MidiDataRanges[];
+    static PKSDATARANGE MidiDataRangePointers[];
+    static KSDATARANGE BridgeDataRanges[];
+    static PKSDATARANGE BridgeDataRangePointers[];
+    static PCPIN_DESCRIPTOR PinDescriptors[];
+    static PCNODE_DESCRIPTOR Nodes[];
+    static PCCONNECTION_DESCRIPTOR Connections[];
+    static GUID MiniportCategories[];
+    static PCFILTER_DESCRIPTOR FilterDescriptor;
+
+public:
+    DECLARE_STD_UNKNOWN();
+
+    CMiniportDM2(PUNKNOWN OuterUnknown, WDFDEVICE WdfDevice)
+        :CUnknown(OuterUnknown)
+    {
+        m_WdfDevice = WdfDevice;
+    }
+
+    // Inherited via IMiniportMidi
+    STDMETHODIMP_(NTSTATUS) Init(PUNKNOWN UnknownAdapter, PRESOURCELIST ResourceList, PPORTMIDI Port, PSERVICEGROUP * ServiceGroup);
+    STDMETHODIMP_(void) Service(void);
+    STDMETHODIMP_(NTSTATUS) NewStream(PMINIPORTMIDISTREAM * Stream, PUNKNOWN OuterUnknown, POOL_TYPE PoolType, ULONG Pin, BOOLEAN Capture, PKSDATAFORMAT DataFormat, PSERVICEGROUP * ServiceGroup);
+    STDMETHODIMP_(void) PowerChangeNotify(POWER_STATE PowerState);
+    STDMETHODIMP_(NTSTATUS) GetDescription(PPCFILTER_DESCRIPTOR *Description);
+
+    // Inherited via IPowerNotify
+    STDMETHODIMP_(NTSTATUS) DataRangeIntersection(ULONG PinId, PKSDATARANGE DataRange, PKSDATARANGE MatchingDataRange, ULONG OutputBufferLength, PVOID ResultantFormat, PULONG ResultantFormatLength);
+};
 
 //
 // The device context performs the same job as
@@ -26,10 +72,9 @@ EXTERN_C_START
 typedef struct _DEVICE_CONTEXT
 {
     WDFUSBDEVICE UsbDevice;
-	WDFUSBINTERFACE UsbInterface;
-	WDFUSBPIPE InPipe;
-	WDFUSBPIPE OutPipe;
-
+    WDFUSBINTERFACE UsbInterface;
+    WDFUSBPIPE InPipe;
+    WDFUSBPIPE OutPipe;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 //
@@ -38,6 +83,19 @@ typedef struct _DEVICE_CONTEXT
 // in a type safe manner.
 //
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
+
+NTSTATUS
+MixmanDM2AddDevice(
+    PDRIVER_OBJECT  DriverObject,
+    PDEVICE_OBJECT  PhysicalDeviceObject
+);
+
+NTSTATUS
+MixmanDM2StartDevice(
+    PDEVICE_OBJECT  DeviceObject,
+    PIRP  Irp,
+    PRESOURCELIST  ResourceList
+);
 
 //
 // Function to initialize the device's queues and callbacks
@@ -61,4 +119,4 @@ MixmanDM2DispatchPnpStart(
 
 EVT_WDF_DEVICE_D0_ENTRY MixmanDM2EvtDeviceD0Entry;
 
-EXTERN_C_END
+#endif

@@ -14,20 +14,116 @@ Environment:
 
 --*/
 
-#include <ntddk.h>
+#ifndef DRIVER_H
+#define DRIVER_H
+
+#include <ntifs.h>
 #include <wdf.h>
 #include <usb.h>
-#include <usbdlib.h>
 #include <wdfusb.h>
 #include <initguid.h>
-#include <windef.h>
-#include <ks.h>
+#include <portcls.h>
+
+EXTERN_C_START
+#include <usbdlib.h>
+EXTERN_C_END
 
 #include "device.h"
 #include "queue.h"
 #include "trace.h"
 
-EXTERN_C_START
+
+PVOID operator new
+(
+    size_t          iSize,
+    _When_((poolType & NonPagedPoolMustSucceed) != 0,
+        __drv_reportError("Must succeed pool allocations are forbidden. "
+            "Allocation failures cause a system crash"))
+    POOL_TYPE       poolType
+    );
+
+PVOID operator new
+(
+    size_t          iSize,
+    _When_((poolType & NonPagedPoolMustSucceed) != 0,
+        __drv_reportError("Must succeed pool allocations are forbidden. "
+            "Allocation failures cause a system crash"))
+    POOL_TYPE       poolType,
+    ULONG           tag
+    );
+
+/*++
+
+Routine Description:
+
+    Array delete() operator.
+
+Arguments:
+
+    pVoid -
+        The memory to free.
+
+Return Value:
+
+    None
+
+--*/
+void
+__cdecl
+operator delete[](
+    PVOID pVoid
+    );
+
+/*++
+
+Routine Description:
+
+    Sized delete() operator.
+
+Arguments:
+
+    pVoid -
+        The memory to free.
+
+    size -
+        The size of the memory to free.
+
+Return Value:
+
+    None
+
+--*/
+void __cdecl operator delete
+(
+    void *pVoid,
+    size_t /*size*/
+    );
+
+/*++
+
+Routine Description:
+
+    Sized delete[]() operator.
+
+Arguments:
+
+    pVoid -
+        The memory to free.
+
+    size -
+        The size of the memory to free.
+
+Return Value:
+
+    None
+
+--*/
+void __cdecl operator delete[]
+(
+    void *pVoid,
+    size_t /*size*/
+    );
+
 
 //
 // WDFDRIVER Events
@@ -35,7 +131,6 @@ EXTERN_C_START
 
 #define DM2_POOL_TAG 'd2mD'
 
-DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_UNLOAD MixmanDM2EvtDriverUnload;
 
-EXTERN_C_END
+#endif

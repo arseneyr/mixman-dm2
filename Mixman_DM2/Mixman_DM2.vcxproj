@@ -54,15 +54,13 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Device.c" />
-    <ClCompile Include="Driver.c" />
-    <ClCompile Include="Queue.c" />
+    <ClCompile Include="Device.cpp" />
+    <ClCompile Include="Driver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="Driver.h" />
     <ClInclude Include="Public.h" />
-    <ClInclude Include="Queue.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
@@ -286,7 +284,7 @@
       <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib;ks.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;portcls.lib;usbd.lib;stdunk.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='no-deploy|x64'">
@@ -298,7 +296,7 @@
       <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib;ks.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;portcls.lib;usbd.lib;stdunk.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -309,7 +307,7 @@
       <WppKernelMode>true</WppKernelMode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;usbd.lib;ks.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;portcls.lib;usbd.lib;stdunk.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">

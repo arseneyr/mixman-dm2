@@ -16,43 +16,151 @@ Environment:
 
 #include "driver.h"
 #include "driver.tmh"
+extern "C" DRIVER_INITIALIZE DriverEntry;
 
-#ifdef ALLOC_PRAGMA
-#pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, MixmanDM2EvtDriverUnload)
-#endif
+PVOID operator new
+(
+    size_t          iSize,
+    _When_((poolType & NonPagedPoolMustSucceed) != 0,
+        __drv_reportError("Must succeed pool allocations are forbidden. "
+            "Allocation failures cause a system crash"))
+    POOL_TYPE       poolType
+    )
+{
+    PVOID result = ExAllocatePoolWithTag(poolType, iSize, 'wNCK');
 
+    if (result) {
+        RtlZeroMemory(result, iSize);
+    }
 
-KSDEVICE_DISPATCH
-CaptureDeviceDispatch = {
-    MixmanDM2CreateDevice,                  // Pnp Add Device
-    MixmanDM2DispatchPnpStart,              // Pnp Start
-    NULL,                                   // Post-Start
-    NULL,                                   // Pnp Query Stop
-    NULL,                                   // Pnp Cancel Stop
-    NULL,                                   // Pnp Stop
-    NULL,                                   // Pnp Query Remove
-    NULL,                                   // Pnp Cancel Remove
-    NULL,                                   // Pnp Remove
-    NULL,                                   // Pnp Query Capabilities
-    NULL,                                   // Pnp Surprise Removal
-    NULL,                                   // Power Query Power
-    NULL,                                   // Power Set Power
-    NULL                                    // Pnp Query Interface
-};
+    return result;
+}
 
-KSDEVICE_DESCRIPTOR
-CaptureDeviceDescriptor = {
-    &CaptureDeviceDispatch,
-    0,
-    NULL
-};
+PVOID operator new
+(
+    size_t          iSize,
+    _When_((poolType & NonPagedPoolMustSucceed) != 0,
+        __drv_reportError("Must succeed pool allocations are forbidden. "
+            "Allocation failures cause a system crash"))
+    POOL_TYPE       poolType,
+    ULONG           tag
+    )
+{
+    PVOID result = ExAllocatePoolWithTag(poolType, iSize, tag);
 
+    if (result) {
+        RtlZeroMemory(result, iSize);
+    }
+
+    return result;
+}
+
+/*++
+
+Routine Description:
+
+    Array delete() operator.
+
+Arguments:
+
+    pVoid -
+        The memory to free.
+
+Return Value:
+
+    None
+
+--*/
+void
+__cdecl
+operator delete[](
+    PVOID pVoid
+    )
+{
+    if (pVoid)
+    {
+        ExFreePool(pVoid);
+    }
+}
+
+/*++
+
+Routine Description:
+
+    Sized delete() operator.
+
+Arguments:
+
+    pVoid -
+        The memory to free.
+
+    size -
+        The size of the memory to free.
+
+Return Value:
+
+    None
+
+--*/
+void __cdecl operator delete
+(
+    void *pVoid,
+    size_t /*size*/
+    )
+{
+    if (pVoid)
+    {
+        ExFreePool(pVoid);
+    }
+}
+
+/*++
+
+Routine Description:
+
+    Sized delete[]() operator.
+
+Arguments:
+
+    pVoid -
+        The memory to free.
+
+    size -
+        The size of the memory to free.
+
+Return Value:
+
+    None
+
+--*/
+void __cdecl operator delete[]
+(
+    void *pVoid,
+    size_t /*size*/
+    )
+{
+    if (pVoid)
+    {
+        ExFreePool(pVoid);
+    }
+}
+
+/*void __cdecl operator delete
+(
+    PVOID pVoid
+    )
+{
+    if (pVoid) {
+        ExFreePool(pVoid);
+    }
+}*/
+
+extern "C"
 NTSTATUS
 DriverEntry(
-    _In_ PDRIVER_OBJECT  DriverObject,
-    _In_ PUNICODE_STRING RegistryPath
-    )
+    IN PDRIVER_OBJECT DriverObject,
+    IN PUNICODE_STRING RegistryPath
+)
 /*++
 
 Routine Description:
@@ -113,7 +221,7 @@ Return Value:
         goto Cleanup;
     }
 
-    status = KsInitializeDriver(DriverObject, RegistryPath, &CaptureDeviceDescriptor);
+    status = PcInitializeAdapterDriver(DriverObject, RegistryPath, MixmanDM2AddDevice);
     if (!NT_SUCCESS(status)) {
         goto Cleanup;
     }

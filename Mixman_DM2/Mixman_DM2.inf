@@ -18,8 +18,8 @@
 
 [Version]
 Signature="$Windows NT$"
-Class=USBDevice
-ClassGuid={88bae032-5a81-49f0-bc3d-a4ff138216d6}
+Class=MEDIA
+ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
 CatalogFile=Mixman_DM2.cat
 DriverVer=09/30/2004,1.0.0.0
@@ -37,20 +37,40 @@ ExcludeFromSelect=*
 Mixman_DM2.CopyFiles=12
 
 [Manufacturer]
-%ManufacturerName%=Standard,NT$ARCH$
+%ManufacturerName%=Standard,NTAMD64
 
-[Standard.NT$ARCH$]
+[Standard.NTAMD64]
 %Mixman_DM2.DeviceDesc%=Mixman_DM2, USB\VID_0665&PID_0301
 
-[Mixman_DM2.NT]
-include=ks.inf,kscaptur.inf
-needs=KS.Registration,KSCAPTUR.Registration.NT
+[Mixman_DM2.NTAMD64]
+AddReg=Mixman_DM2.AddReg
 CopyFiles=Mixman_DM2.CopyFiles
+Include=ks.inf, wdmaudio.inf
+Needs=KS.Registration, WDMAUDIO.Registration
 
 [Mixman_DM2.CopyFiles]
 Mixman_DM2.sys
 
-[Mixman_DM2.NT.Services]
+[Mixman_DM2.AddReg]
+HKR,,AssociatedFilters,,"wdmaud"
+HKR,,Driver,,Mixman_DM2.sys 
+HKR,Drivers,SubClasses,,"midi"
+HKR,Drivers\midi\Wdmaud.drv,Driver,,Wdmaud.drv
+HKR,Drivers\midi\Wdmaud.drv,Description,,%Mixman_DM2.DeviceDesc%
+
+[Mixman_DM2.NTAMD64.Interfaces]
+AddInterface=%KSCATEGORY_AUDIO%,%MidiDeviceName%,Mixman_DM2.Midi
+AddInterface=%KSCATEGORY_RENDER%,%MidiDeviceName%,Mixman_DM2.Midi
+AddInterface=%KSCATEGORY_CAPTURE%,%MidiDeviceName%,Mixman_DM2.Midi
+
+[Mixman_DM2.Midi]
+AddReg=Mixman_DM2.Midi.AddReg
+
+[Mixman_DM2.Midi.AddReg]
+HKR,,FriendlyName,,%Mixman_DM2.DeviceDesc%
+HKR,,CLSID,,%Proxy.CLSID%
+
+[Mixman_DM2.NTAMD64.Services]
 AddService=Mixman_DM2, 0x00000002, Mixman_DM2.ServiceInstall
 
 [Mixman_DM2.ServiceInstall]
@@ -62,9 +82,12 @@ ServiceBinary=%12%\Mixman_DM2.sys
 
 [Strings]
 ; non-localizable
-Proxy.CLSID="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
+KSCATEGORY_AUDIO="{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
+KSCATEGORY_RENDER="{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
 KSCATEGORY_CAPTURE="{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
-KSSTRING_Filter="{9B365890-165F-11D0-A195-0020AFD156E4}"
+Proxy.CLSID="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
+MidiDeviceName="mixmandm2"
+KSName_Midi="Midi"
 
 SERVICE_KERNEL_DRIVER=1
 SERVICE_DEMAND_START=3
