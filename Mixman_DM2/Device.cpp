@@ -17,6 +17,8 @@ Environment:
 #include "device.h"
 #include "device.tmh"
 
+#include "MixmanDM2Reader.h"
+
 #pragma warning(disable: 100 101)
 
 KSDATARANGE_MUSIC CMiniportDM2::MidiDataRanges[] = { {
@@ -225,7 +227,7 @@ Return Value:
         goto Cleanup;
     }
 
-    status = CreateMiniportDM2(&miniport, CLSID_NULL, NULL, NonPagedPool, wdfDevice);
+    status = CreateMiniportDM2(&miniport, CLSID_NULL, NULL, NonPagedPoolNx, wdfDevice);
     if (!NT_SUCCESS(status)) {
         goto Cleanup;
     }
@@ -285,6 +287,13 @@ MixmanDM2EvtDeviceD0Entry(
     }
 
     return STATUS_SUCCESS;
+}
+
+CMiniportDM2::~CMiniportDM2()
+{
+    if (m_Port) {
+        m_Port->Release();
+    }
 }
 
 STDMETHODIMP_(NTSTATUS)
@@ -461,8 +470,8 @@ Return Value:
     }
 
     m_UsbInterface = WdfUsbTargetDeviceGetInterface(m_UsbDevice, 0);
-    m_InPipe = WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL);
-    m_OutPipe = WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 1, NULL);
+    status = CreateMixmanDM2Reader(&m_Reader, CLSID_NULL, NULL, NonPagedPoolNx, this);
+    reinterpret_cast<MixmanDM2Reader*>(m_Reader)->Init(WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
@@ -472,6 +481,11 @@ Cleanup:
     }
     if (urb != NULL) {
         ExFreePoolWithTag(urb, DM2_POOL_TAG);
+    }
+
+    if (NT_SUCCESS(status)) {
+        m_Port = Port;
+        m_Port->AddRef();
     }
 
     return status;
@@ -493,7 +507,11 @@ CMiniportDM2::NewStream(
     PSERVICEGROUP * ServiceGroup
 )
 {
-    return STATUS_NOT_IMPLEMENTED;
+    if (Pin != 0 || !Capture) {
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    return m_Reader->QueryInterface(IID_IMiniportMidiStream, (PVOID*)Stream);
 }
 
 STDMETHODIMP_(void)

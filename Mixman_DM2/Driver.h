@@ -23,6 +23,8 @@ Environment:
 #include <wdfusb.h>
 #include <initguid.h>
 #include <portcls.h>
+#define _NEW_DELETE_OPERATORS_
+#include <stdunk.h>
 
 EXTERN_C_START
 #include <usbdlib.h>
@@ -31,7 +33,6 @@ EXTERN_C_END
 #include "device.h"
 #include "queue.h"
 #include "trace.h"
-
 
 PVOID operator new
 (
@@ -123,7 +124,6 @@ void __cdecl operator delete[]
     void *pVoid,
     size_t /*size*/
     );
-
 
 //
 // WDFDRIVER Events

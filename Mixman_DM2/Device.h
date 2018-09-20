@@ -20,8 +20,6 @@ Environment:
 #include "Driver.h"
 #include "public.h"
 #include <wdfminiport.h>
-#define _NEW_DELETE_OPERATORS_
-#include <stdunk.h>
 
 class CMiniportDM2
     : public IMiniportMidi,
@@ -29,11 +27,13 @@ class CMiniportDM2
     public CUnknown
 {
 private:
-    WDFUSBPIPE      m_InPipe;
-    WDFUSBPIPE      m_OutPipe;
+    friend class MixmanDM2Reader;
+
+    PUNKNOWN        m_Reader;
     WDFDEVICE       m_WdfDevice;
     WDFUSBDEVICE    m_UsbDevice;
     WDFUSBINTERFACE m_UsbInterface;
+    PPORTMIDI       m_Port;
 
     static KSDATARANGE_MUSIC MidiDataRanges[];
     static PKSDATARANGE MidiDataRangePointers[];
@@ -45,6 +45,8 @@ private:
     static GUID MiniportCategories[];
     static PCFILTER_DESCRIPTOR FilterDescriptor;
 
+    void Notify() { m_Port->Notify(NULL); }
+
 public:
     DECLARE_STD_UNKNOWN();
 
@@ -53,6 +55,8 @@ public:
     {
         m_WdfDevice = WdfDevice;
     }
+
+    virtual ~CMiniportDM2();
 
     // Inherited via IMiniportMidi
     STDMETHODIMP_(NTSTATUS) Init(PUNKNOWN UnknownAdapter, PRESOURCELIST ResourceList, PPORTMIDI Port, PSERVICEGROUP * ServiceGroup);

@@ -56,10 +56,12 @@
   <ItemGroup>
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="Driver.cpp" />
+    <ClCompile Include="MixmanDM2Reader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="Driver.h" />
+    <ClInclude Include="MixmanDM2Reader.h" />
     <ClInclude Include="Public.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
