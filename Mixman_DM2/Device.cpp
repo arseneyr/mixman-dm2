@@ -203,7 +203,7 @@ Return Value:
 
     PAGED_CODE();
 
-    deviceContext = (PDM2_DEVICE_CONTEXT)(((PUINT8)DeviceObject->DeviceExtension) + sizeof(PORT_CLASS_DEVICE_EXTENSION_SIZE));
+    deviceContext = (PDM2_DEVICE_CONTEXT)(((PUINT8)DeviceObject->DeviceExtension) + PORT_CLASS_DEVICE_EXTENSION_SIZE);
 
     status = PcGetPhysicalDeviceObject(DeviceObject, &pdo);
     if (!NT_SUCCESS(status)) {
