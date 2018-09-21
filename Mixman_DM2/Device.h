@@ -21,6 +21,10 @@ Environment:
 #include "public.h"
 #include <wdfminiport.h>
 
+typedef struct _DM2_DEVICE_CONTEXT {
+    WDFDEVICE WdfDevice;
+} DM2_DEVICE_CONTEXT, *PDM2_DEVICE_CONTEXT;
+
 class CMiniportDM2
     : public IMiniportMidi,
     public IPowerNotify,
@@ -29,11 +33,12 @@ class CMiniportDM2
 private:
     friend class MixmanDM2Reader;
 
-    PUNKNOWN        m_Reader;
+    WDFUSBPIPE      m_InPipe;
     WDFDEVICE       m_WdfDevice;
     WDFUSBDEVICE    m_UsbDevice;
     WDFUSBINTERFACE m_UsbInterface;
     PPORTMIDI       m_Port;
+    PSERVICEGROUP   m_ServiceGroup;
 
     static KSDATARANGE_MUSIC MidiDataRanges[];
     static PKSDATARANGE MidiDataRangePointers[];
@@ -45,7 +50,7 @@ private:
     static GUID MiniportCategories[];
     static PCFILTER_DESCRIPTOR FilterDescriptor;
 
-    void Notify() { m_Port->Notify(NULL); }
+    void Notify() { m_Port->Notify(m_ServiceGroup); }
 
 public:
     DECLARE_STD_UNKNOWN();

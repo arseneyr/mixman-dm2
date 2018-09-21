@@ -31,7 +31,8 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
         POOL_TYPE       PoolType,
-        CMiniportDM2    *Miniport
+        CMiniportDM2    *Miniport,
+        WDFUSBPIPE      InPipe
     );
 
 class MixmanDM2RingBuffer {
@@ -58,6 +59,11 @@ public:
         NT_ASSERT(m_Irql != 0);
 
         KeReleaseSpinLock(&m_Lock, m_Irql);
+        m_Irql = 0;
+    }
+
+    BOOLEAN IsEmpty() {
+        return m_In == m_Out;
     }
 
     NTSTATUS Insert(DM2_MIDI_PACKET Packet);
@@ -73,9 +79,9 @@ private:
     CMiniportDM2 *m_Miniport;
     WDFUSBPIPE m_Pipe;
     WDFIOTARGET m_IoTarget;
-
     DM2_DATA_FORMAT m_Previous;
     MixmanDM2RingBuffer m_RingBuffer;
+    BOOLEAN m_FirstBufferSkipped;
 
     static EVT_WDF_USB_READER_COMPLETION_ROUTINE ReadCompletedCallback;
     void OnReadCompleted(WDFMEMORY Buffer, size_t NumBytesTransferred);
@@ -83,10 +89,10 @@ private:
 public:
     DECLARE_STD_UNKNOWN();
 
-    MixmanDM2Reader(PUNKNOWN OuterUnknown, CMiniportDM2 *Miniport)
-        : CUnknown(OuterUnknown), m_Miniport(Miniport) {}
+    MixmanDM2Reader(PUNKNOWN OuterUnknown, CMiniportDM2 *Miniport, WDFUSBPIPE InPipe)
+        : CUnknown(OuterUnknown), m_Miniport(Miniport), m_Pipe(InPipe) {}
 
-    NTSTATUS Init(WDFUSBPIPE Pipe);
+    NTSTATUS Init();
     ~MixmanDM2Reader();
 
     // Inherited via IMiniportMidiStream

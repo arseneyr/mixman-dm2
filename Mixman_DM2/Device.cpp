@@ -160,7 +160,12 @@ MixmanDM2AddDevice(
     PDEVICE_OBJECT  PhysicalDeviceObject
 )
 {
-    return PcAddAdapterDevice(DriverObject, PhysicalDeviceObject, MixmanDM2StartDevice, 1, 0);
+    return PcAddAdapterDevice(
+        DriverObject,
+        PhysicalDeviceObject,
+        MixmanDM2StartDevice,
+        1,
+        PORT_CLASS_DEVICE_EXTENSION_SIZE + sizeof(DM2_DEVICE_CONTEXT));
 }
 
 NTSTATUS
@@ -194,8 +199,11 @@ Return Value:
     WDFDEVICE wdfDevice = NULL;
     PPORT port = NULL;
     PUNKNOWN miniport = NULL;
+    PDM2_DEVICE_CONTEXT deviceContext;
 
     PAGED_CODE();
+
+    deviceContext = (PDM2_DEVICE_CONTEXT)(((PUINT8)DeviceObject->DeviceExtension) + sizeof(PORT_CLASS_DEVICE_EXTENSION_SIZE));
 
     status = PcGetPhysicalDeviceObject(DeviceObject, &pdo);
     if (!NT_SUCCESS(status)) {
@@ -246,6 +254,9 @@ Cleanup:
             WdfObjectDelete(wdfDevice);
         }
     }
+    else {
+        deviceContext->WdfDevice = wdfDevice;
+    }
 
     if (port) {
         port->Release();
@@ -258,41 +269,16 @@ Cleanup:
     return status;
 }
 
-NTSTATUS
-MixmanDM2EvtDeviceD0Entry(
-    WDFDEVICE Device,
-    WDF_POWER_DEVICE_STATE PreviousState
-)
-{
-    NTSTATUS status;
-    PDEVICE_CONTEXT deviceContext;
-    WDFREQUEST request;
-    WDF_MEMORY_DESCRIPTOR  memoryDescriptor;
-    UINT8  buf[4] = { 0x00, 0x00, 0xff, 0xff };
-    ULONG bytesWritten;
-
-    UNREFERENCED_PARAMETER(PreviousState);
-
-    deviceContext = DeviceGetContext(Device);
-
-    WdfRequestCreate(WDF_NO_OBJECT_ATTRIBUTES, NULL, &request);
-    WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(&memoryDescriptor,
-        (PVOID)buf,
-        sizeof(buf));
-
-    status = WdfUsbTargetPipeWriteSynchronously(deviceContext->OutPipe, request, NULL, &memoryDescriptor, &bytesWritten);
-
-    if (NT_SUCCESS(status)) {
-        status = WdfRequestGetStatus(request);
-    }
-
-    return STATUS_SUCCESS;
-}
-
 CMiniportDM2::~CMiniportDM2()
 {
     if (m_Port) {
         m_Port->Release();
+        m_Port = NULL;
+    }
+
+    if (m_ServiceGroup) {
+        m_ServiceGroup->Release();
+        m_ServiceGroup = NULL;
     }
 }
 
@@ -469,9 +455,20 @@ Return Value:
         goto Cleanup;
     }
 
+    status = PcNewServiceGroup(&m_ServiceGroup, NULL);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
+            "PcNewServiceGroup failed 0x%x", status);
+
+        goto Cleanup;
+    }
+
+    *ServiceGroup = m_ServiceGroup;
+    m_ServiceGroup->AddRef();
+
     m_UsbInterface = WdfUsbTargetDeviceGetInterface(m_UsbDevice, 0);
-    status = CreateMixmanDM2Reader(&m_Reader, CLSID_NULL, NULL, NonPagedPoolNx, this);
-    reinterpret_cast<MixmanDM2Reader*>(m_Reader)->Init(WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL));
+    m_InPipe = WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL);
+    WdfUsbTargetPipeSetNoMaximumPacketSizeCheck(m_InPipe);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
@@ -511,7 +508,10 @@ CMiniportDM2::NewStream(
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
-    return m_Reader->QueryInterface(IID_IMiniportMidiStream, (PVOID*)Stream);
+    *ServiceGroup = m_ServiceGroup;
+    m_ServiceGroup->AddRef();
+
+    return CreateMixmanDM2Reader((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this, m_InPipe);
 }
 
 STDMETHODIMP_(void)

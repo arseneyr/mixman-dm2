@@ -10,14 +10,15 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
         POOL_TYPE       PoolType,
-        CMiniportDM2    *Miniport
+        CMiniportDM2    *Miniport,
+        WDFUSBPIPE      InPipe
     )
 {
     NTSTATUS ntStatus;
 
     UNREFERENCED_PARAMETER(ClassID);
 
-    MixmanDM2Reader *p = new(PoolType, DM2_POOL_TAG) MixmanDM2Reader(UnknownOuter, Miniport);
+    MixmanDM2Reader *p = new(PoolType, DM2_POOL_TAG) MixmanDM2Reader(UnknownOuter, Miniport, InPipe);
     if (p) {
         *Unknown = PUNKNOWN((PMINIPORTMIDISTREAM)(p));
         (*Unknown)->AddRef();
@@ -50,8 +51,14 @@ MixmanDM2Reader::OnReadCompleted(
 )
 {
     PDM2_DATA_FORMAT current;
+    BOOLEAN notify = FALSE;
 
-    if (NumBytesTransferred != sizeof(DM2_DATA_FORMAT)) {
+    if (NumBytesTransferred != sizeof(DM2_DATA_FORMAT) ||
+        !m_FirstBufferSkipped) {
+        //
+        // First buffer is uninteresting
+        //
+        m_FirstBufferSkipped = TRUE;
         return;
     }
 
@@ -63,9 +70,13 @@ MixmanDM2Reader::OnReadCompleted(
 
     m_RingBuffer.Lock();
     HandleButtons(current->Buttons);
+    notify = !m_RingBuffer.IsEmpty();
     m_RingBuffer.Unlock();
 
-    m_Miniport->Notify();
+    if (notify) {
+        m_Miniport->Notify();
+    }
+
     m_Previous = *current;
 }
 
@@ -82,15 +93,13 @@ MixmanDM2Reader::HandleButtons(
             m_RingBuffer.Insert({
                 DM2_MIDI_BUTTON_STATUS,
                 i,
-                Current & 1 << 1 ? DM2_MIDI_NOTE_ON : DM2_MIDI_NOTE_OFF });
+                Current & 1 << i ? DM2_MIDI_NOTE_ON : DM2_MIDI_NOTE_OFF });
         }
     }
 }
 
 NTSTATUS
-MixmanDM2Reader::Init(
-    WDFUSBPIPE Pipe
-)
+MixmanDM2Reader::Init()
 {
     NTSTATUS status;
     WDF_USB_CONTINUOUS_READER_CONFIG config;
@@ -99,11 +108,11 @@ MixmanDM2Reader::Init(
         &config,
         MixmanDM2Reader::ReadCompletedCallback,
         this,
-        16);
+        sizeof(DM2_DATA_FORMAT));
 
-    status = WdfUsbTargetPipeConfigContinuousReader(Pipe, &config);
+    status = WdfUsbTargetPipeConfigContinuousReader(m_Pipe, &config);
     if (NT_SUCCESS(status)) {
-        m_IoTarget = WdfUsbTargetPipeGetIoTarget(Pipe);
+        m_IoTarget = WdfUsbTargetPipeGetIoTarget(m_Pipe);
     }
 
     return status;
@@ -126,15 +135,24 @@ MixmanDM2Reader::SetState(
     KSSTATE State
 )
 {
+    NTSTATUS status;
+
+    status = STATUS_SUCCESS;
+
     switch (State) {
     case KSSTATE_RUN:
-        return WdfIoTargetStart(m_IoTarget);
+        status = Init();
+        if (NT_SUCCESS(status)) {
+            status = WdfIoTargetStart(m_IoTarget);
+        }
+
+        break;
     case KSSTATE_STOP:
         WdfIoTargetStop(m_IoTarget, WdfIoTargetCancelSentIo);
         break;
     }
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 STDMETHODIMP_(NTSTATUS)
