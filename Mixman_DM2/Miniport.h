@@ -18,10 +18,11 @@ Environment:
 #define DEVICE_H
 
 #include "Driver.h"
-#include "public.h"
-#include "MixmanDM2Reader.h"
+#include "Reader.h"
+#include "Stream.h"
+#include "Sender.h"
 
-class MixmanDM2Stream;
+class CMiniportDM2Stream;
 
 class CMiniportDM2
     : public IMiniportMidi,
@@ -31,11 +32,12 @@ class CMiniportDM2
 private:
 
     MixmanDM2Reader m_Reader{ this };
-    WDFDEVICE       m_WdfDevice;
-    WDFUSBDEVICE    m_UsbDevice;
-    WDFUSBINTERFACE m_UsbInterface;
-    PPORTMIDI       m_Port;
-    PSERVICEGROUP   m_ServiceGroup;
+    MixmanDM2Sender m_Sender;
+    WDFDEVICE       m_WdfDevice = NULL;
+    WDFUSBDEVICE    m_UsbDevice = NULL;
+    WDFUSBINTERFACE m_UsbInterface = NULL;
+    PPORTMIDI       m_Port = NULL;
+    PSERVICEGROUP   m_ServiceGroup = NULL;
     LIST_ENTRY      m_StreamListHead;
     KSPIN_LOCK      m_StreamListLock;
 
@@ -51,10 +53,11 @@ private:
 
     typedef struct _STREAM_LIST_ENTRY {
         LIST_ENTRY ListEntry;
-        MixmanDM2Stream *Stream;
+        CMiniportDM2Stream *Stream;
     } STREAM_LIST_ENTRY, *PSTREAM_LIST_ENTRY;
 
-    NTSTATUS AddStream(MixmanDM2Stream *Stream);
+    NTSTATUS AddStream(CMiniportDM2Stream *Stream);
+    NTSTATUS InitSender(WDFUSBPIPE OutPipe);
 
 public:
     DECLARE_STD_UNKNOWN();
@@ -69,8 +72,10 @@ public:
 
     virtual ~CMiniportDM2();
 
-    void RemoveStream(MixmanDM2Stream *stream);
+    void RemoveStream(CMiniportDM2Stream *stream);
     void Notify(PDM2_MIDI_PACKET Packets, UINT8 PacketCount);
+    NTSTATUS SetLeds(UINT8 Left, UINT8 Right);
+    NTSTATUS SetSingleLed(UINT8 LedNumber, BOOLEAN TurnOn);
 
     // Inherited via IMiniportMidi
     STDMETHODIMP_(NTSTATUS) Init(PUNKNOWN UnknownAdapter, PRESOURCELIST ResourceList, PPORTMIDI Port, PSERVICEGROUP * ServiceGroup);
@@ -101,27 +106,5 @@ MixmanDM2StartDevice(
     PIRP  Irp,
     PRESOURCELIST  ResourceList
 );
-
-//
-// Function to initialize the device's queues and callbacks
-//
-NTSTATUS
-MixmanDM2CreateDevice(
-    PKSDEVICE Device
-);
-
-//
-// Function to select the device's USB configuration and get a WDFUSBDEVICE
-// handle
-//
-NTSTATUS
-MixmanDM2DispatchPnpStart(
-    PKSDEVICE Device,
-    PIRP Irp,
-    PCM_RESOURCE_LIST TranslatedResourceList,
-    PCM_RESOURCE_LIST UntranslatedResourceList
-);
-
-EVT_WDF_DEVICE_D0_ENTRY MixmanDM2EvtDeviceD0Entry;
 
 #endif

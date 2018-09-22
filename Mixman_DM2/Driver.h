@@ -34,13 +34,6 @@ EXTERN_C_END
 #include "trace.h"
 
 #pragma pack(push, 1)
-typedef struct _DM2_DATA_FORMAT {
-    UINT32 Buttons;
-    UINT8 Reserved;
-    UINT8 Sliders[3];
-    UINT8 Wheels[2];
-} DM2_DATA_FORMAT, *PDM2_DATA_FORMAT;
-
 typedef struct _DM2_MIDI_PACKET {
     UINT8 Status;
     UINT8 Data1;

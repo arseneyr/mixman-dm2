@@ -14,10 +14,8 @@ Environment:
 
 --*/
 
-#include "device.h"
-#include "device.tmh"
-
-#pragma warning(disable: 100 101)
+#include "Miniport.h"
+#include "Miniport.tmh"
 
 KSDATARANGE_MUSIC CMiniportDM2::MidiDataRanges[] = { {
         {
@@ -139,7 +137,11 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
     )
 {
     NTSTATUS ntStatus;
-    CMiniportDM2 *p = new(PoolType, DM2_POOL_TAG) CMiniportDM2(UnknownOuter, WdfDevice);
+    CMiniportDM2 *p;
+
+    UNREFERENCED_PARAMETER(ClassID);
+
+    p = new(PoolType, DM2_POOL_TAG) CMiniportDM2(UnknownOuter, WdfDevice);
     if (p) {
         *Unknown = PUNKNOWN((PMINIPORTMIDI)(p));
         (*Unknown)->AddRef();
@@ -266,7 +268,7 @@ Cleanup:
 
 NTSTATUS
 CMiniportDM2::AddStream(
-    MixmanDM2Stream * Stream
+    CMiniportDM2Stream * Stream
 )
 {
     KIRQL irql;
@@ -282,6 +284,7 @@ CMiniportDM2::AddStream(
     InsertTailList(&m_StreamListHead, &newEntry->ListEntry);
     KeReleaseSpinLock(&m_StreamListLock, irql);
 
+    m_Reader.IncrementStreams();
     AddRef();
     return STATUS_SUCCESS;
 }
@@ -301,7 +304,7 @@ CMiniportDM2::~CMiniportDM2()
 
 void
 CMiniportDM2::RemoveStream(
-    MixmanDM2Stream *Stream
+    CMiniportDM2Stream *Stream
 )
 {
     KIRQL irql;
@@ -323,10 +326,10 @@ CMiniportDM2::RemoveStream(
     if (foundEntry) {
         RemoveEntryList(&foundEntry->ListEntry);
         ExFreePoolWithTag(foundEntry, DM2_POOL_TAG);
+        m_Reader.DecrementStreams();
     }
 
     KeReleaseSpinLock(&m_StreamListLock, irql);
-
     Release();
 }
 
@@ -350,6 +353,20 @@ CMiniportDM2::Notify(
     m_Port->Notify(m_ServiceGroup);
     KeReleaseSpinLockFromDpcLevel(&m_StreamListLock);
     KeLowerIrql(irql);
+}
+
+NTSTATUS CMiniportDM2::SetLeds(UINT8 Left, UINT8 Right)
+{
+    return m_Sender.SetLeds(Left, Right);
+}
+
+NTSTATUS
+CMiniportDM2::SetSingleLed(
+    UINT8 LedNumber,
+    BOOLEAN TurnOn
+)
+{
+    return m_Sender.SetSingleLed(LedNumber, TurnOn);
 }
 
 STDMETHODIMP_(NTSTATUS)
@@ -390,6 +407,9 @@ Return Value:
     WDFUSBPIPE inPipe;
 
     PAGED_CODE();
+
+    UNREFERENCED_PARAMETER(ResourceList);
+    UNREFERENCED_PARAMETER(UnknownAdapter);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -541,6 +561,8 @@ Return Value:
 
     inPipe = WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL);
     WdfUsbTargetPipeSetNoMaximumPacketSizeCheck(inPipe);
+    // Sender is used by reader, and must be configured first.
+    m_Sender.Init(WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 1, NULL));
     status = m_Reader.Init(inPipe);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
@@ -579,6 +601,9 @@ CMiniportDM2::NewStream(
 {
     NTSTATUS status;
 
+    UNREFERENCED_PARAMETER(DataFormat);
+    UNREFERENCED_PARAMETER(PoolType);
+
     if (Pin != 0 || !Capture) {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
@@ -586,9 +611,9 @@ CMiniportDM2::NewStream(
     *ServiceGroup = m_ServiceGroup;
     m_ServiceGroup->AddRef();
 
-    status = CreateMixmanDM2Reader((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this);
+    status = CreateMiniportDM2Stream((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this);
     if (NT_SUCCESS(status)) {
-        AddStream(reinterpret_cast<MixmanDM2Stream*>(*Stream));
+        AddStream(reinterpret_cast<CMiniportDM2Stream*>(*Stream));
     }
 
     return status;
@@ -599,6 +624,7 @@ CMiniportDM2::PowerChangeNotify(
     POWER_STATE PowerState
 )
 {
+    UNREFERENCED_PARAMETER(PowerState);
 }
 
 STDMETHODIMP_(NTSTATUS)
@@ -620,7 +646,14 @@ CMiniportDM2::DataRangeIntersection(
     PULONG ResultantFormatLength
 )
 {
-    return STATUS_NOT_IMPLEMENTED;
+    UNREFERENCED_PARAMETER(PinId);
+    UNREFERENCED_PARAMETER(DataRange);
+    UNREFERENCED_PARAMETER(MatchingDataRange);
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(ResultantFormat);
+    UNREFERENCED_PARAMETER(ResultantFormatLength);
+
+    return STATUS_SUCCESS;
 }
 
 STDMETHODIMP_(NTSTATUS)

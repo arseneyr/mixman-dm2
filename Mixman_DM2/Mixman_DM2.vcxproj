@@ -54,15 +54,20 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Device.cpp" />
+    <ClCompile Include="Miniport.cpp" />
     <ClCompile Include="Driver.cpp" />
-    <ClCompile Include="MixmanDM2Reader.cpp" />
+    <ClCompile Include="Reader.cpp" />
+    <ClCompile Include="Sender.cpp" />
+    <ClCompile Include="Slider.cpp" />
+    <ClCompile Include="Stream.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Device.h" />
+    <ClInclude Include="Miniport.h" />
     <ClInclude Include="Driver.h" />
-    <ClInclude Include="MixmanDM2Reader.h" />
-    <ClInclude Include="Public.h" />
+    <ClInclude Include="Reader.h" />
+    <ClInclude Include="Sender.h" />
+    <ClInclude Include="Slider.h" />
+    <ClInclude Include="Stream.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>

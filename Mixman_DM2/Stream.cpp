@@ -1,12 +1,10 @@
-#include "MixmanDM2Reader.h"
-#include "Device.h"
-
-#pragma warning(disable: 100 101)
+#include "Stream.h"
+#include "Miniport.h"
 
 _When_((PoolType&NonPagedPoolMustSucceed) != 0,
     __drv_reportError("Must succeed pool allocations are forbidden. "
         "Allocation failures cause a system crash"))
-    NTSTATUS CreateMixmanDM2Reader(
+    NTSTATUS CreateMiniportDM2Stream(
         PUNKNOWN        *Unknown,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
@@ -18,7 +16,7 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
 
     UNREFERENCED_PARAMETER(ClassID);
 
-    MixmanDM2Stream *p = new(PoolType, DM2_POOL_TAG) MixmanDM2Stream(UnknownOuter, Miniport);
+    CMiniportDM2Stream *p = new(PoolType, DM2_POOL_TAG) CMiniportDM2Stream(UnknownOuter, Miniport);
     if (p) {
         *Unknown = PUNKNOWN((PMINIPORTMIDISTREAM)(p));
         (*Unknown)->AddRef();
@@ -31,109 +29,12 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
     return ntStatus;
 }
 
-void
-MixmanDM2Reader::ReadCompletedCallback(
-    WDFUSBPIPE Pipe,
-    WDFMEMORY Buffer,
-    size_t NumBytesTransferred,
-    WDFCONTEXT Context
-)
-{
-    UNREFERENCED_PARAMETER(Pipe);
-
-    reinterpret_cast<MixmanDM2Reader*>(Context)->OnReadCompleted(Buffer, NumBytesTransferred);
-}
-
-void
-MixmanDM2Reader::OnReadCompleted(
-    WDFMEMORY Buffer,
-    size_t NumBytesTransferred
-)
-{
-    PDM2_DATA_FORMAT current;
-
-    if (NumBytesTransferred != sizeof(DM2_DATA_FORMAT) ||
-        !m_FirstBufferSkipped) {
-        //
-        // First buffer is uninteresting
-        //
-        m_FirstBufferSkipped = TRUE;
-        return;
-    }
-
-    current = (PDM2_DATA_FORMAT)WdfMemoryGetBuffer(Buffer, NULL);
-
-    if (RtlCompareMemory(current, &m_Previous, sizeof(*current)) == sizeof(*current)) {
-        return;
-    }
-
-    HandleButtons(current->Buttons);
-
-    if (m_MidiPacketsCount) {
-        m_Miniport->Notify(m_MidiPackets, m_MidiPacketsCount);
-        m_MidiPacketsCount = 0;
-    }
-
-    m_Previous = *current;
-}
-
-void
-MixmanDM2Reader::HandleButtons(
-    UINT32 Current
-)
-{
-    UINT32 buttonDiff;
-
-    buttonDiff = Current ^ m_Previous.Buttons;
-    for (UINT8 i = 0; i < 32; ++i) {
-        if (buttonDiff & 1 << i) {
-            AddMidiPacket({
-                DM2_MIDI_BUTTON_STATUS,
-                i,
-                Current & 1 << i ? DM2_MIDI_NOTE_ON : DM2_MIDI_NOTE_OFF });
-        }
-    }
-}
-
-MixmanDM2Reader::~MixmanDM2Reader()
-{
-    if (m_IoTarget) {
-        WdfIoTargetStop(m_IoTarget, WdfIoTargetCancelSentIo);
-    }
-}
-
-NTSTATUS
-MixmanDM2Reader::Init(WDFUSBPIPE InPipe)
-{
-    NTSTATUS status;
-    WDF_USB_CONTINUOUS_READER_CONFIG config;
-    WDFIOTARGET target;
-
-    WDF_USB_CONTINUOUS_READER_CONFIG_INIT(
-        &config,
-        MixmanDM2Reader::ReadCompletedCallback,
-        this,
-        sizeof(DM2_DATA_FORMAT));
-
-    status = WdfUsbTargetPipeConfigContinuousReader(InPipe, &config);
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
-    target = WdfUsbTargetPipeGetIoTarget(InPipe);
-    status = WdfIoTargetStart(target);
-    if (NT_SUCCESS(status)) {
-        m_IoTarget = target;
-    }
-
-    return status;
-}
-
-MixmanDM2Stream::~MixmanDM2Stream() {
+CMiniportDM2Stream::~CMiniportDM2Stream() {
     m_Miniport->RemoveStream(this);
 }
 
 NTSTATUS
-MixmanDM2Stream::AddPackets(
+CMiniportDM2Stream::AddPackets(
     PDM2_MIDI_PACKET Packets,
     UINT8 PacketCount,
     BOOLEAN AtDpc
@@ -157,15 +58,17 @@ MixmanDM2Stream::AddPackets(
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Stream::SetFormat(
+CMiniportDM2Stream::SetFormat(
     PKSDATAFORMAT DataFormat
 )
 {
+    UNREFERENCED_PARAMETER(DataFormat);
+
     return STATUS_SUCCESS;
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Stream::SetState(
+CMiniportDM2Stream::SetState(
     KSSTATE State
 )
 {
@@ -174,7 +77,7 @@ MixmanDM2Stream::SetState(
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Stream::Read(
+CMiniportDM2Stream::Read(
     PVOID BufferAddress,
     ULONG BufferLength,
     PULONG BytesRead
@@ -197,12 +100,16 @@ MixmanDM2Stream::Read(
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Stream::Write(
+CMiniportDM2Stream::Write(
     PVOID BufferAddress,
     ULONG BytesToWrite,
     PULONG BytesWritten
 )
 {
+    UNREFERENCED_PARAMETER(BufferAddress);
+    UNREFERENCED_PARAMETER(BytesToWrite);
+    UNREFERENCED_PARAMETER(BytesWritten);
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
@@ -235,7 +142,7 @@ MixmanDM2RingBuffer::Remove(
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Stream::NonDelegatingQueryInterface
+CMiniportDM2Stream::NonDelegatingQueryInterface
 (
     _In_ REFIID  Interface,
     _COM_Outptr_   PVOID * Object
