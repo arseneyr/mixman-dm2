@@ -1,27 +1,16 @@
 #pragma once
 
 #include "Driver.h"
-#include "Device.h"
+
+class CMiniportDM2;
 
 constexpr UINT8 DM2_MIDI_NOTE_ON = 0x7F;
 constexpr UINT8 DM2_MIDI_NOTE_OFF = 0x00;
 constexpr UINT8 DM2_MIDI_BUTTON_STATUS = 0x90;
 constexpr UINT8 DM2_MIDI_STATUS_MASK = 0x80;
-
-#pragma pack(push, 1)
-typedef struct _DM2_DATA_FORMAT {
-    UINT32 Buttons;
-    UINT8 Reserved;
-    UINT8 Sliders[3];
-    UINT8 Wheels[2];
-} DM2_DATA_FORMAT, *PDM2_DATA_FORMAT;
-
-typedef struct _DM2_MIDI_PACKET {
-    UINT8 Status;
-    UINT8 Data1;
-    UINT8 Data2;
-} DM2_MIDI_PACKET, *PDM2_MIDI_PACKET;
-#pragma pack(pop)
+constexpr UINT8 DM2_MIDI_MAX_BUTTONS = 32;
+constexpr UINT8 DM2_MIDI_MAX_SLIDERS = 3;
+constexpr UINT8 DM2_MIDI_MAX_WHEELS = 2;
 
 _When_((PoolType&NonPagedPoolMustSucceed) != 0,
     __drv_reportError("Must succeed pool allocations are forbidden. "
@@ -31,8 +20,7 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
         POOL_TYPE       PoolType,
-        CMiniportDM2    *Miniport,
-        WDFUSBPIPE      InPipe
+        CMiniportDM2    *Miniport
     );
 
 class MixmanDM2RingBuffer {
@@ -49,51 +37,77 @@ public:
         KeInitializeSpinLock(&m_Lock);
     }
 
-    void Lock() {
-        NT_ASSERT(m_Irql == 0);
-
-        KeAcquireSpinLock(&m_Lock, &m_Irql);
+    void Lock(BOOLEAN AtDpc) {
+        if (AtDpc) {
+            KeAcquireSpinLockAtDpcLevel(&m_Lock);
+        }
+        else {
+            NT_ASSERT(m_Irql == 0);
+            KeAcquireSpinLock(&m_Lock, &m_Irql);
+        }
     }
 
-    void Unlock() {
-        NT_ASSERT(m_Irql != 0);
+    void Unlock(BOOLEAN AtDpc) {
+        if (AtDpc) {
+            KeReleaseSpinLockFromDpcLevel(&m_Lock);
+        }
+        else {
+            NT_ASSERT(m_Irql != 0);
 
-        KeReleaseSpinLock(&m_Lock, m_Irql);
-        m_Irql = 0;
+            KeReleaseSpinLock(&m_Lock, m_Irql);
+            m_Irql = 0;
+        }
     }
 
     BOOLEAN IsEmpty() {
         return m_In == m_Out;
     }
 
-    NTSTATUS Insert(DM2_MIDI_PACKET Packet);
+    NTSTATUS Insert(PDM2_MIDI_PACKET Packet);
     NTSTATUS Remove(PDM2_MIDI_PACKET Packet);
 };
 
 class MixmanDM2Reader
+{
+    CMiniportDM2 *m_Miniport;
+    WDFIOTARGET m_IoTarget;
+    DM2_DATA_FORMAT m_Previous;
+    BOOLEAN m_FirstBufferSkipped;
+    DM2_MIDI_PACKET m_MidiPackets[DM2_MIDI_MAX_BUTTONS + DM2_MIDI_MAX_SLIDERS + DM2_MIDI_MAX_WHEELS];
+    UINT8 m_MidiPacketsCount;
+
+    static EVT_WDF_USB_READER_COMPLETION_ROUTINE ReadCompletedCallback;
+    void OnReadCompleted(WDFMEMORY Buffer, size_t NumBytesTransferred);
+    void AddMidiPacket(DM2_MIDI_PACKET Packet) { m_MidiPackets[m_MidiPacketsCount++] = Packet; }
+    void HandleButtons(UINT32 Current);
+
+public:
+    MixmanDM2Reader(CMiniportDM2 *Miniport)
+        : m_Miniport(Miniport) {}
+
+    ~MixmanDM2Reader();
+
+    NTSTATUS Init(WDFUSBPIPE InPipe);
+};
+
+class MixmanDM2Stream
     : public IMiniportMidiStream,
     public CUnknown
 {
 private:
-
-    CMiniportDM2 *m_Miniport;
-    WDFUSBPIPE m_Pipe;
-    WDFIOTARGET m_IoTarget;
-    DM2_DATA_FORMAT m_Previous;
     MixmanDM2RingBuffer m_RingBuffer;
-    BOOLEAN m_FirstBufferSkipped;
+    KSSTATE m_State;
+    CMiniportDM2 *m_Miniport;
 
-    static EVT_WDF_USB_READER_COMPLETION_ROUTINE ReadCompletedCallback;
-    void OnReadCompleted(WDFMEMORY Buffer, size_t NumBytesTransferred);
-    void HandleButtons(UINT32 Current);
 public:
     DECLARE_STD_UNKNOWN();
 
-    MixmanDM2Reader(PUNKNOWN OuterUnknown, CMiniportDM2 *Miniport, WDFUSBPIPE InPipe)
-        : CUnknown(OuterUnknown), m_Miniport(Miniport), m_Pipe(InPipe) {}
+    MixmanDM2Stream(PUNKNOWN OuterUnknown, CMiniportDM2 *Miniport)
+        : CUnknown(OuterUnknown), m_Miniport(Miniport) {}
 
-    NTSTATUS Init();
-    ~MixmanDM2Reader();
+    ~MixmanDM2Stream();
+
+    NTSTATUS AddPackets(PDM2_MIDI_PACKET Packets, UINT8 PacketCount, BOOLEAN AtDpc);
 
     // Inherited via IMiniportMidiStream
     STDMETHODIMP_(NTSTATUS) SetFormat(PKSDATAFORMAT DataFormat);

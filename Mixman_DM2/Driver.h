@@ -23,6 +23,7 @@ Environment:
 #include <wdfusb.h>
 #include <initguid.h>
 #include <portcls.h>
+#include <wdfminiport.h>
 #define _NEW_DELETE_OPERATORS_
 #include <stdunk.h>
 
@@ -30,9 +31,32 @@ EXTERN_C_START
 #include <usbdlib.h>
 EXTERN_C_END
 
-#include "device.h"
-#include "queue.h"
 #include "trace.h"
+
+#pragma pack(push, 1)
+typedef struct _DM2_DATA_FORMAT {
+    UINT32 Buttons;
+    UINT8 Reserved;
+    UINT8 Sliders[3];
+    UINT8 Wheels[2];
+} DM2_DATA_FORMAT, *PDM2_DATA_FORMAT;
+
+typedef struct _DM2_MIDI_PACKET {
+    UINT8 Status;
+    UINT8 Data1;
+    UINT8 Data2;
+} DM2_MIDI_PACKET, *PDM2_MIDI_PACKET;
+#pragma pack(pop)
+
+typedef struct _DM2_DEVICE_CONTEXT {
+    WDFDEVICE WdfDevice;
+} DM2_DEVICE_CONTEXT, *PDM2_DEVICE_CONTEXT;
+
+NTSTATUS
+MixmanDM2AddDevice(
+    PDRIVER_OBJECT  DriverObject,
+    PDEVICE_OBJECT  PhysicalDeviceObject
+);
 
 PVOID operator new
 (

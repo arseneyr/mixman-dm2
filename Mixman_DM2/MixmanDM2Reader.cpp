@@ -1,4 +1,5 @@
 #include "MixmanDM2Reader.h"
+#include "Device.h"
 
 #pragma warning(disable: 100 101)
 
@@ -10,15 +11,14 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
         POOL_TYPE       PoolType,
-        CMiniportDM2    *Miniport,
-        WDFUSBPIPE      InPipe
+        CMiniportDM2    *Miniport
     )
 {
     NTSTATUS ntStatus;
 
     UNREFERENCED_PARAMETER(ClassID);
 
-    MixmanDM2Reader *p = new(PoolType, DM2_POOL_TAG) MixmanDM2Reader(UnknownOuter, Miniport, InPipe);
+    MixmanDM2Stream *p = new(PoolType, DM2_POOL_TAG) MixmanDM2Stream(UnknownOuter, Miniport);
     if (p) {
         *Unknown = PUNKNOWN((PMINIPORTMIDISTREAM)(p));
         (*Unknown)->AddRef();
@@ -51,7 +51,6 @@ MixmanDM2Reader::OnReadCompleted(
 )
 {
     PDM2_DATA_FORMAT current;
-    BOOLEAN notify = FALSE;
 
     if (NumBytesTransferred != sizeof(DM2_DATA_FORMAT) ||
         !m_FirstBufferSkipped) {
@@ -68,13 +67,11 @@ MixmanDM2Reader::OnReadCompleted(
         return;
     }
 
-    m_RingBuffer.Lock();
     HandleButtons(current->Buttons);
-    notify = !m_RingBuffer.IsEmpty();
-    m_RingBuffer.Unlock();
 
-    if (notify) {
-        m_Miniport->Notify();
+    if (m_MidiPacketsCount) {
+        m_Miniport->Notify(m_MidiPackets, m_MidiPacketsCount);
+        m_MidiPacketsCount = 0;
     }
 
     m_Previous = *current;
@@ -90,7 +87,7 @@ MixmanDM2Reader::HandleButtons(
     buttonDiff = Current ^ m_Previous.Buttons;
     for (UINT8 i = 0; i < 32; ++i) {
         if (buttonDiff & 1 << i) {
-            m_RingBuffer.Insert({
+            AddMidiPacket({
                 DM2_MIDI_BUTTON_STATUS,
                 i,
                 Current & 1 << i ? DM2_MIDI_NOTE_ON : DM2_MIDI_NOTE_OFF });
@@ -98,11 +95,19 @@ MixmanDM2Reader::HandleButtons(
     }
 }
 
+MixmanDM2Reader::~MixmanDM2Reader()
+{
+    if (m_IoTarget) {
+        WdfIoTargetStop(m_IoTarget, WdfIoTargetCancelSentIo);
+    }
+}
+
 NTSTATUS
-MixmanDM2Reader::Init()
+MixmanDM2Reader::Init(WDFUSBPIPE InPipe)
 {
     NTSTATUS status;
     WDF_USB_CONTINUOUS_READER_CONFIG config;
+    WDFIOTARGET target;
 
     WDF_USB_CONTINUOUS_READER_CONFIG_INIT(
         &config,
@@ -110,20 +115,49 @@ MixmanDM2Reader::Init()
         this,
         sizeof(DM2_DATA_FORMAT));
 
-    status = WdfUsbTargetPipeConfigContinuousReader(m_Pipe, &config);
+    status = WdfUsbTargetPipeConfigContinuousReader(InPipe, &config);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+    target = WdfUsbTargetPipeGetIoTarget(InPipe);
+    status = WdfIoTargetStart(target);
     if (NT_SUCCESS(status)) {
-        m_IoTarget = WdfUsbTargetPipeGetIoTarget(m_Pipe);
+        m_IoTarget = target;
     }
 
     return status;
 }
 
-MixmanDM2Reader::~MixmanDM2Reader()
+MixmanDM2Stream::~MixmanDM2Stream() {
+    m_Miniport->RemoveStream(this);
+}
+
+NTSTATUS
+MixmanDM2Stream::AddPackets(
+    PDM2_MIDI_PACKET Packets,
+    UINT8 PacketCount,
+    BOOLEAN AtDpc
+)
 {
+    NTSTATUS status = STATUS_SUCCESS;
+
+    if (m_State != KSSTATE_RUN) {
+        return status;
+    }
+
+    m_RingBuffer.Lock(AtDpc);
+    for (UINT8 i = 0; i < PacketCount; ++i) {
+        status = m_RingBuffer.Insert(Packets + i);
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+    }
+    m_RingBuffer.Unlock(AtDpc);
+    return status;
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Reader::SetFormat(
+MixmanDM2Stream::SetFormat(
     PKSDATAFORMAT DataFormat
 )
 {
@@ -131,55 +165,39 @@ MixmanDM2Reader::SetFormat(
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Reader::SetState(
+MixmanDM2Stream::SetState(
     KSSTATE State
 )
 {
-    NTSTATUS status;
-
-    status = STATUS_SUCCESS;
-
-    switch (State) {
-    case KSSTATE_RUN:
-        status = Init();
-        if (NT_SUCCESS(status)) {
-            status = WdfIoTargetStart(m_IoTarget);
-        }
-
-        break;
-    case KSSTATE_STOP:
-        WdfIoTargetStop(m_IoTarget, WdfIoTargetCancelSentIo);
-        break;
-    }
-
-    return status;
+    m_State = State;
+    return STATUS_SUCCESS;
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Reader::Read(
+MixmanDM2Stream::Read(
     PVOID BufferAddress,
     ULONG BufferLength,
     PULONG BytesRead
 )
 {
     if (BufferLength < sizeof(DM2_MIDI_PACKET)) {
-        __debugbreak();
         return STATUS_BUFFER_TOO_SMALL;
     }
 
-    m_RingBuffer.Lock();
+    m_RingBuffer.Lock(FALSE);
     if (NT_SUCCESS(m_RingBuffer.Remove((PDM2_MIDI_PACKET)BufferAddress))) {
         *BytesRead = sizeof(DM2_MIDI_PACKET);
     }
     else {
         *BytesRead = 0;
     }
-    m_RingBuffer.Unlock();
+
+    m_RingBuffer.Unlock(FALSE);
     return STATUS_SUCCESS;
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Reader::Write(
+MixmanDM2Stream::Write(
     PVOID BufferAddress,
     ULONG BytesToWrite,
     PULONG BytesWritten
@@ -190,14 +208,14 @@ MixmanDM2Reader::Write(
 
 NTSTATUS
 MixmanDM2RingBuffer::Insert(
-    DM2_MIDI_PACKET Packet
+    PDM2_MIDI_PACKET Packet
 )
 {
     if ((m_In + 1) % RING_SIZE == m_Out) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    m_Ring[m_In] = Packet;
+    m_Ring[m_In] = *Packet;
     m_In = (m_In + 1) % RING_SIZE;
     return STATUS_SUCCESS;
 }
@@ -217,7 +235,7 @@ MixmanDM2RingBuffer::Remove(
 }
 
 STDMETHODIMP_(NTSTATUS)
-MixmanDM2Reader::NonDelegatingQueryInterface
+MixmanDM2Stream::NonDelegatingQueryInterface
 (
     _In_ REFIID  Interface,
     _COM_Outptr_   PVOID * Object

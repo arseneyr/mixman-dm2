@@ -17,8 +17,6 @@ Environment:
 #include "device.h"
 #include "device.tmh"
 
-#include "MixmanDM2Reader.h"
-
 #pragma warning(disable: 100 101)
 
 KSDATARANGE_MUSIC CMiniportDM2::MidiDataRanges[] = { {
@@ -195,7 +193,6 @@ Return Value:
     NTSTATUS status;
     PDEVICE_OBJECT pdo;
     PDEVICE_OBJECT parentDevice = NULL;
-    WDF_OBJECT_ATTRIBUTES   deviceAttributes;
     WDFDEVICE wdfDevice = NULL;
     PPORT port = NULL;
     PUNKNOWN miniport = NULL;
@@ -216,11 +213,9 @@ Return Value:
         goto Cleanup;
     }
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
-
     status = WdfDeviceMiniportCreate(
         WdfGetDriver(),
-        &deviceAttributes,
+        WDF_NO_OBJECT_ATTRIBUTES,
         DeviceObject,
         parentDevice,
         pdo,
@@ -269,6 +264,28 @@ Cleanup:
     return status;
 }
 
+NTSTATUS
+CMiniportDM2::AddStream(
+    MixmanDM2Stream * Stream
+)
+{
+    KIRQL irql;
+    PSTREAM_LIST_ENTRY newEntry;
+
+    newEntry = (PSTREAM_LIST_ENTRY)ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*newEntry), DM2_POOL_TAG);
+    if (!newEntry) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    newEntry->Stream = Stream;
+    KeAcquireSpinLock(&m_StreamListLock, &irql);
+    InsertTailList(&m_StreamListHead, &newEntry->ListEntry);
+    KeReleaseSpinLock(&m_StreamListLock, irql);
+
+    AddRef();
+    return STATUS_SUCCESS;
+}
+
 CMiniportDM2::~CMiniportDM2()
 {
     if (m_Port) {
@@ -280,6 +297,59 @@ CMiniportDM2::~CMiniportDM2()
         m_ServiceGroup->Release();
         m_ServiceGroup = NULL;
     }
+}
+
+void
+CMiniportDM2::RemoveStream(
+    MixmanDM2Stream *Stream
+)
+{
+    KIRQL irql;
+    PLIST_ENTRY entry;
+    PSTREAM_LIST_ENTRY foundEntry = NULL;
+
+    KeAcquireSpinLock(&m_StreamListLock, &irql);
+    for (entry = m_StreamListHead.Flink;
+        entry != &m_StreamListHead;
+        entry = entry->Flink) {
+        foundEntry = CONTAINING_RECORD(entry, STREAM_LIST_ENTRY, ListEntry);
+        if (foundEntry->Stream == Stream) {
+            break;
+        }
+
+        foundEntry = NULL;
+    }
+
+    if (foundEntry) {
+        RemoveEntryList(&foundEntry->ListEntry);
+        ExFreePoolWithTag(foundEntry, DM2_POOL_TAG);
+    }
+
+    KeReleaseSpinLock(&m_StreamListLock, irql);
+
+    Release();
+}
+
+void
+CMiniportDM2::Notify(
+    PDM2_MIDI_PACKET Packets,
+    UINT8 PacketCount
+)
+{
+    KIRQL irql;
+    PLIST_ENTRY entry;
+
+    irql = KeRaiseIrqlToDpcLevel();
+    KeAcquireSpinLockAtDpcLevel(&m_StreamListLock);
+    for (entry = m_StreamListHead.Flink;
+        entry != &m_StreamListHead;
+        entry = entry->Flink) {
+        CONTAINING_RECORD(entry, STREAM_LIST_ENTRY, ListEntry)->Stream->AddPackets(Packets, PacketCount, TRUE);
+    }
+
+    m_Port->Notify(m_ServiceGroup);
+    KeReleaseSpinLockFromDpcLevel(&m_StreamListLock);
+    KeLowerIrql(irql);
 }
 
 STDMETHODIMP_(NTSTATUS)
@@ -317,6 +387,7 @@ Return Value:
     PURB urb = NULL;
     USBD_INTERFACE_LIST_ENTRY interfaces[2] = { {0} };
     PUSB_ENDPOINT_DESCRIPTOR brokenEndpoint;
+    WDFUSBPIPE inPipe;
 
     PAGED_CODE();
 
@@ -467,8 +538,10 @@ Return Value:
     m_ServiceGroup->AddRef();
 
     m_UsbInterface = WdfUsbTargetDeviceGetInterface(m_UsbDevice, 0);
-    m_InPipe = WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL);
-    WdfUsbTargetPipeSetNoMaximumPacketSizeCheck(m_InPipe);
+
+    inPipe = WdfUsbInterfaceGetConfiguredPipe(m_UsbInterface, 0, NULL);
+    WdfUsbTargetPipeSetNoMaximumPacketSizeCheck(inPipe);
+    status = m_Reader.Init(inPipe);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
@@ -504,6 +577,8 @@ CMiniportDM2::NewStream(
     PSERVICEGROUP * ServiceGroup
 )
 {
+    NTSTATUS status;
+
     if (Pin != 0 || !Capture) {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
@@ -511,7 +586,12 @@ CMiniportDM2::NewStream(
     *ServiceGroup = m_ServiceGroup;
     m_ServiceGroup->AddRef();
 
-    return CreateMixmanDM2Reader((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this, m_InPipe);
+    status = CreateMixmanDM2Reader((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this);
+    if (NT_SUCCESS(status)) {
+        AddStream(reinterpret_cast<MixmanDM2Stream*>(*Stream));
+    }
+
+    return status;
 }
 
 STDMETHODIMP_(void)

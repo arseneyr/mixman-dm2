@@ -19,11 +19,9 @@ Environment:
 
 #include "Driver.h"
 #include "public.h"
-#include <wdfminiport.h>
+#include "MixmanDM2Reader.h"
 
-typedef struct _DM2_DEVICE_CONTEXT {
-    WDFDEVICE WdfDevice;
-} DM2_DEVICE_CONTEXT, *PDM2_DEVICE_CONTEXT;
+class MixmanDM2Stream;
 
 class CMiniportDM2
     : public IMiniportMidi,
@@ -31,14 +29,15 @@ class CMiniportDM2
     public CUnknown
 {
 private:
-    friend class MixmanDM2Reader;
 
-    WDFUSBPIPE      m_InPipe;
+    MixmanDM2Reader m_Reader{ this };
     WDFDEVICE       m_WdfDevice;
     WDFUSBDEVICE    m_UsbDevice;
     WDFUSBINTERFACE m_UsbInterface;
     PPORTMIDI       m_Port;
     PSERVICEGROUP   m_ServiceGroup;
+    LIST_ENTRY      m_StreamListHead;
+    KSPIN_LOCK      m_StreamListLock;
 
     static KSDATARANGE_MUSIC MidiDataRanges[];
     static PKSDATARANGE MidiDataRangePointers[];
@@ -50,7 +49,12 @@ private:
     static GUID MiniportCategories[];
     static PCFILTER_DESCRIPTOR FilterDescriptor;
 
-    void Notify() { m_Port->Notify(m_ServiceGroup); }
+    typedef struct _STREAM_LIST_ENTRY {
+        LIST_ENTRY ListEntry;
+        MixmanDM2Stream *Stream;
+    } STREAM_LIST_ENTRY, *PSTREAM_LIST_ENTRY;
+
+    NTSTATUS AddStream(MixmanDM2Stream *Stream);
 
 public:
     DECLARE_STD_UNKNOWN();
@@ -58,10 +62,15 @@ public:
     CMiniportDM2(PUNKNOWN OuterUnknown, WDFDEVICE WdfDevice)
         :CUnknown(OuterUnknown)
     {
+        InitializeListHead(&m_StreamListHead);
+        KeInitializeSpinLock(&m_StreamListLock);
         m_WdfDevice = WdfDevice;
     }
 
     virtual ~CMiniportDM2();
+
+    void RemoveStream(MixmanDM2Stream *stream);
+    void Notify(PDM2_MIDI_PACKET Packets, UINT8 PacketCount);
 
     // Inherited via IMiniportMidi
     STDMETHODIMP_(NTSTATUS) Init(PUNKNOWN UnknownAdapter, PRESOURCELIST ResourceList, PPORTMIDI Port, PSERVICEGROUP * ServiceGroup);
@@ -85,19 +94,6 @@ typedef struct _DEVICE_CONTEXT
     WDFUSBPIPE InPipe;
     WDFUSBPIPE OutPipe;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
-
-//
-// This macro will generate an inline function called DeviceGetContext
-// which will be used to get a pointer to the device context memory
-// in a type safe manner.
-//
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
-
-NTSTATUS
-MixmanDM2AddDevice(
-    PDRIVER_OBJECT  DriverObject,
-    PDEVICE_OBJECT  PhysicalDeviceObject
-);
 
 NTSTATUS
 MixmanDM2StartDevice(
