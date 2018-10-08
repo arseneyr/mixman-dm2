@@ -166,15 +166,11 @@ PnpDispatch(
 )
 {
     PIO_STACK_LOCATION ioStack;
-    PDM2_DEVICE_CONTEXT deviceContext;
 
     ioStack = IoGetCurrentIrpStackLocation(Irp);
-    deviceContext = (PDM2_DEVICE_CONTEXT)(((PUINT8)DeviceObject->DeviceExtension) + PORT_CLASS_DEVICE_EXTENSION_SIZE);
 
-    if (ioStack->MinorFunction == IRP_MN_REMOVE_DEVICE &&
-        deviceContext->WdfDevice != NULL) {
-        WdfObjectDelete(deviceContext->WdfDevice);
-        deviceContext->WdfDevice = NULL;
+    if (ioStack->MinorFunction == IRP_MN_REMOVE_DEVICE) {
+        MixmanDM2OnDeviceRemove(DeviceObject);
     }
 
     return PcDispatchIrp(DeviceObject, Irp);
@@ -184,6 +180,7 @@ VOID DriverUnload(
     PDRIVER_OBJECT Driver
 )
 {
+    WPP_CLEANUP(Driver);
     WdfDriverMiniportUnload(WdfGetDriver());
     originalUnload(Driver);
 }
@@ -239,7 +236,6 @@ Return Value:
     );
 
     config.DriverInitFlags = WdfDriverInitNoDispatchOverride;
-    config.EvtDriverUnload = MixmanDM2EvtDriverUnload;
 
     status = WdfDriverCreate(DriverObject,
         RegistryPath,
@@ -270,33 +266,4 @@ Cleanup:
     }
 
     return status;
-}
-
-VOID
-MixmanDM2EvtDriverUnload(
-    _In_ WDFDRIVER Driver
-)
-/*++
-Routine Description:
-
-    Free all the resources allocated in DriverEntry.
-
-Arguments:
-
-    DriverObject - handle to a WDF Driver object.
-
-Return Value:
-
-    VOID.
-
---*/
-{
-    PAGED_CODE();
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
-
-    //
-    // Stop WPP Tracing
-    //
-    WPP_CLEANUP(WdfDriverWdmGetDriverObject(Driver));
 }

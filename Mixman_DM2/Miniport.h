@@ -40,6 +40,7 @@ private:
     PSERVICEGROUP   m_ServiceGroup = NULL;
     LIST_ENTRY      m_StreamListHead;
     KSPIN_LOCK      m_StreamListLock;
+    BOOLEAN         m_PowerStateD0 = TRUE;
 
     static KSDATARANGE_MUSIC MidiDataRanges[];
     static PKSDATARANGE MidiDataRangePointers[];
@@ -57,7 +58,6 @@ private:
     } STREAM_LIST_ENTRY, *PSTREAM_LIST_ENTRY;
 
     NTSTATUS AddStream(CMiniportDM2Stream *Stream);
-    NTSTATUS InitSender(WDFUSBPIPE OutPipe);
 
 public:
     DECLARE_STD_UNKNOWN();
@@ -72,6 +72,7 @@ public:
 
     virtual ~CMiniportDM2();
 
+    void Cleanup();
     void RemoveStream(CMiniportDM2Stream *stream);
     void Notify(PDM2_MIDI_PACKET Packets, UINT8 PacketCount);
     NTSTATUS SetLeds(UINT8 Left, UINT8 Right);
@@ -107,4 +108,5 @@ MixmanDM2StartDevice(
     PRESOURCELIST  ResourceList
 );
 
+//WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DM2_USB_DEVICE_CONTEXT, GetUsbDeviceContext);
 #endif

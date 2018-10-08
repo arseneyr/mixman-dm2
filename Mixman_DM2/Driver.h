@@ -41,14 +41,22 @@ typedef struct _DM2_MIDI_PACKET {
 } DM2_MIDI_PACKET, *PDM2_MIDI_PACKET;
 #pragma pack(pop)
 
+class CMiniportDM2;
+
 typedef struct _DM2_DEVICE_CONTEXT {
     WDFDEVICE WdfDevice;
+    CMiniportDM2* Miniport;
 } DM2_DEVICE_CONTEXT, *PDM2_DEVICE_CONTEXT;
 
 NTSTATUS
 MixmanDM2AddDevice(
     PDRIVER_OBJECT  DriverObject,
     PDEVICE_OBJECT  PhysicalDeviceObject
+);
+
+void
+MixmanDM2OnDeviceRemove(
+    PDEVICE_OBJECT Device
 );
 
 PVOID operator new
@@ -142,12 +150,6 @@ void __cdecl operator delete[]
     size_t /*size*/
     );
 
-//
-// WDFDRIVER Events
-//
-
 #define DM2_POOL_TAG 'd2mD'
-
-EVT_WDF_DRIVER_UNLOAD MixmanDM2EvtDriverUnload;
 
 #endif

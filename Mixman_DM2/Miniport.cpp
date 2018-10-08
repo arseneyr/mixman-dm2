@@ -168,6 +168,22 @@ MixmanDM2AddDevice(
         PORT_CLASS_DEVICE_EXTENSION_SIZE + sizeof(DM2_DEVICE_CONTEXT));
 }
 
+void MixmanDM2OnDeviceRemove(PDEVICE_OBJECT Device)
+{
+    PDM2_DEVICE_CONTEXT deviceContext;
+
+    deviceContext = (PDM2_DEVICE_CONTEXT)(((PUINT8)Device->DeviceExtension) + PORT_CLASS_DEVICE_EXTENSION_SIZE);
+    if (deviceContext->Miniport) {
+        deviceContext->Miniport->Cleanup();
+        deviceContext->Miniport->Release();
+        deviceContext->Miniport = NULL;
+    }
+    if (deviceContext->WdfDevice) {
+        WdfObjectDelete(deviceContext->WdfDevice);
+        deviceContext->WdfDevice = NULL;
+    }
+}
+
 NTSTATUS
 MixmanDM2StartDevice(
     PDEVICE_OBJECT  DeviceObject,
@@ -238,20 +254,23 @@ Return Value:
     }
 
     status = port->Init(DeviceObject, Irp, miniport, NULL, ResourceList);
-    if (NT_SUCCESS(status)) {
-        status = PcRegisterSubdevice(DeviceObject, L"mixmandm2", port);
+    if (!NT_SUCCESS(status)) {
+        goto Cleanup;
     }
 
-    miniport->Release();
-    miniport = NULL;
+    status = PcRegisterSubdevice(DeviceObject, L"mixmandm2", port);
 
 Cleanup:
     if (!NT_SUCCESS(status)) {
         if (wdfDevice != NULL) {
             WdfObjectDelete(wdfDevice);
         }
+        if (miniport != NULL) {
+            miniport->Release();
+        }
     }
     else {
+        deviceContext->Miniport = (CMiniportDM2*)(PMINIPORTMIDI)miniport;
         deviceContext->WdfDevice = wdfDevice;
     }
 
@@ -284,7 +303,6 @@ CMiniportDM2::AddStream(
     InsertTailList(&m_StreamListHead, &newEntry->ListEntry);
     KeReleaseSpinLock(&m_StreamListLock, irql);
 
-    m_Reader.IncrementStreams();
     AddRef();
     return STATUS_SUCCESS;
 }
@@ -299,6 +317,18 @@ CMiniportDM2::~CMiniportDM2()
     if (m_ServiceGroup) {
         m_ServiceGroup->Release();
         m_ServiceGroup = NULL;
+    }
+}
+
+void CMiniportDM2::Cleanup()
+{
+    m_Reader.OnD0Exit();
+    //
+    // For some reason, this device will not respond to read requests
+    // after it's disabled, unless it is power cycled. Do that here.
+    //
+    if (m_UsbDevice) {
+        WdfUsbTargetDeviceCyclePortSynchronously(m_UsbDevice);
     }
 }
 
@@ -326,10 +356,10 @@ CMiniportDM2::RemoveStream(
     if (foundEntry) {
         RemoveEntryList(&foundEntry->ListEntry);
         ExFreePoolWithTag(foundEntry, DM2_POOL_TAG);
-        m_Reader.DecrementStreams();
     }
 
     KeReleaseSpinLock(&m_StreamListLock, irql);
+
     Release();
 }
 
@@ -416,39 +446,26 @@ Return Value:
     status = STATUS_SUCCESS;
 
     //
-    // Create a USB device handle so that we can communicate with the
-    // underlying USB stack. The WDFUSBDEVICE handle is used to query,
-    // configure, and manage all aspects of the USB device.
-    // These aspects include device properties, bus properties,
-    // and I/O creation and synchronization. We only create the device the first time
-    // PrepareHardware is called. If the device is restarted by pnp manager
-    // for resource rebalance, we will use the same device handle but then select
-    // the interfaces again because the USB stack could reconfigure the device on
-    // restart.
+    // Specifying a client contract version of 602 enables us to query for
+    // and use the new capabilities of the USB driver stack for Windows 8.
+    // It also implies that we conform to rules mentioned in MSDN
+    // documentation for WdfUsbTargetDeviceCreateWithParameters.
     //
-    if (m_UsbDevice == NULL) {
-        //
-        // Specifying a client contract version of 602 enables us to query for
-        // and use the new capabilities of the USB driver stack for Windows 8.
-        // It also implies that we conform to rules mentioned in MSDN
-        // documentation for WdfUsbTargetDeviceCreateWithParameters.
-        //
-        WDF_USB_DEVICE_CREATE_CONFIG_INIT(&createParams,
-            USBD_CLIENT_CONTRACT_VERSION_602
-        );
+    WDF_USB_DEVICE_CREATE_CONFIG_INIT(&createParams,
+        USBD_CLIENT_CONTRACT_VERSION_602
+    );
 
-        status = WdfUsbTargetDeviceCreateWithParameters(m_WdfDevice,
-            &createParams,
-            WDF_NO_OBJECT_ATTRIBUTES,
-            &m_UsbDevice
-        );
+    status = WdfUsbTargetDeviceCreateWithParameters(m_WdfDevice,
+        &createParams,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &m_UsbDevice
+    );
 
-        if (!NT_SUCCESS(status)) {
-            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
-                "WdfUsbTargetDeviceCreateWithParameters failed 0x%x", status);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE,
+            "WdfUsbTargetDeviceCreateWithParameters failed 0x%x", status);
 
-            goto Cleanup;
-        }
+        goto Cleanup;
     }
 
     //
@@ -624,7 +641,10 @@ CMiniportDM2::PowerChangeNotify(
     POWER_STATE PowerState
 )
 {
-    UNREFERENCED_PARAMETER(PowerState);
+    if (m_PowerStateD0 && PowerState.DeviceState != PowerDeviceD0) {
+        m_PowerStateD0 = FALSE;
+        m_Reader.OnD0Exit();
+    }
 }
 
 STDMETHODIMP_(NTSTATUS)

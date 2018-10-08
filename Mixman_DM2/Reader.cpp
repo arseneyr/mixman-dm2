@@ -21,10 +21,26 @@ MixmanDM2Reader::OnReadCompleted(
 )
 {
     PDM2_DATA_FORMAT current;
+    UINT8 led = 0;
 
     current = (PDM2_DATA_FORMAT)WdfMemoryGetBuffer(Buffer, NULL);
 
     if (NumBytesTransferred != sizeof(DM2_DATA_FORMAT)) {
+        return;
+    }
+    if (m_InitCounter > 0) {
+        m_InitCounter -= 1;
+        if (m_InitCounter == 0) {
+            for (UINT8 i = 0; i < DM2_MIDI_NUM_SLIDERS; ++i) {
+                m_Sliders[i].Reset(current->Sliders[i]);
+            }
+
+            m_Miniport->SetLeds(0, 0);
+        }
+        else if (m_InitCounter % 12 == 0) {
+            led = 0xFF << ((m_InitCounter / 12) - 1);
+            m_Miniport->SetLeds(led, led);
+        }
         return;
     }
 
@@ -79,41 +95,13 @@ void MixmanDM2Reader::HandleWheel(UINT8 WheelNum, UINT8 Current)
     AddMidiPacket({ 0xB0, WheelNum, (UINT8)(64 - clampedCurrent) });
 }
 
-void
-MixmanDM2Reader::Calibrate()
-{
-    NTSTATUS status;
-    DM2_DATA_FORMAT buffer;
-    WDF_MEMORY_DESCRIPTOR wdfMemory;
-    ULONG bytesRead = 0;
-    UINT8 led = 0;
-
-    status = STATUS_SUCCESS;
-    WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(&wdfMemory, &buffer, sizeof(buffer));
-
-    for (UINT8 i = 0; i < 100; ++i) {
-        if (i % 12 == 0) {
-            led |= 0x80 >> (i / 12);
-            m_Miniport->SetLeds(led, led);
-        }
-
-        status = WdfUsbTargetPipeReadSynchronously(m_Pipe, NULL, NULL, &wdfMemory, &bytesRead);
-    }
-
-    m_Miniport->SetLeds(0, 0);
-
-    if (NT_SUCCESS(status) && bytesRead == sizeof(buffer)) {
-        for (UINT8 i = 0; i < DM2_MIDI_NUM_SLIDERS; ++i) {
-            m_Sliders[i].Reset(buffer.Sliders[i]);
-        }
-    }
-}
-
 NTSTATUS
 MixmanDM2Reader::Init(WDFUSBPIPE InPipe)
 {
     NTSTATUS status;
     WDF_USB_CONTINUOUS_READER_CONFIG config;
+
+    m_Pipe = InPipe;
 
     WDF_USB_CONTINUOUS_READER_CONFIG_INIT(
         &config,
@@ -121,29 +109,17 @@ MixmanDM2Reader::Init(WDFUSBPIPE InPipe)
         this,
         sizeof(DM2_DATA_FORMAT));
 
-    status = WdfUsbTargetPipeConfigContinuousReader(InPipe, &config);
+    status = WdfUsbTargetPipeConfigContinuousReader(m_Pipe, &config);
     if (!NT_SUCCESS(status)) {
         return status;
     }
 
-    m_Pipe = InPipe;
     m_IoTarget = WdfUsbTargetPipeGetIoTarget(InPipe);
-    Calibrate();
+    WdfIoTargetStart(m_IoTarget);
     return status;
 }
 
-void
-MixmanDM2Reader::IncrementStreams()
+void MixmanDM2Reader::OnD0Exit()
 {
-    if (++m_ActiveStreams == 1) {
-        WdfIoTargetStart(m_IoTarget);
-    }
-}
-
-void
-MixmanDM2Reader::DecrementStreams()
-{
-    if (--m_ActiveStreams == 0) {
-        WdfIoTargetStop(m_IoTarget, WdfIoTargetCancelSentIo);
-    }
+    WdfIoTargetStop(m_IoTarget, WdfIoTargetCancelSentIo);
 }

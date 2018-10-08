@@ -31,6 +31,7 @@ class MixmanDM2Reader
     DM2_MIDI_PACKET m_MidiPackets[DM2_MIDI_NUM_BUTTONS + DM2_MIDI_NUM_SLIDERS + DM2_MIDI_NUM_WHEELS];
     UINT8 m_MidiPacketsCount = 0;
     UINT32 m_ActiveStreams = 0;
+    UINT32 m_InitCounter = 100;
 
     MixmanDM2Slider m_Sliders[DM2_MIDI_NUM_SLIDERS] = { {0, TRUE}, {1, FALSE}, {2, FALSE} };
 
@@ -39,13 +40,11 @@ class MixmanDM2Reader
     void AddMidiPacket(DM2_MIDI_PACKET Packet) { m_MidiPackets[m_MidiPacketsCount++] = Packet; }
     void HandleButtons(UINT32 Current);
     void HandleWheel(UINT8 WheelNum, UINT8 Current);
-    void Calibrate();
 
 public:
     MixmanDM2Reader(CMiniportDM2 *Miniport)
         : m_Miniport(Miniport) {}
 
     NTSTATUS Init(WDFUSBPIPE InPipe);
-    void IncrementStreams();
-    void DecrementStreams();
+    void OnD0Exit();
 };
