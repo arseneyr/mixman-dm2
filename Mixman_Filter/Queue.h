@@ -34,7 +34,6 @@ MixmanFilterQueueInitialize(
 //
 // Events from the IoQueue object
 //
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL mixmanfilterEvtIoDeviceControl;
-EVT_WDF_IO_QUEUE_IO_STOP mixmanfilterEvtIoStop;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL MixmanFilterEvtIoDeviceControl;
 
 EXTERN_C_END
