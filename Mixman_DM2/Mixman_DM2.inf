@@ -2,26 +2,12 @@
 ; Mixman_DM2.inf
 ;
 
-; Copyright (c) Microsoft Corporation.  All rights reserved.
-;
-; avssamp.INF -- This file contains installation information for the filter-based
-;                AVStream sample driver avssamp.sys
-;           
-; Note:
-;    
-;     This INF expects the following hierarchy in the installation folder:
-;
-;     \
-;         avssamp.inf
-;         avssamp.sys
-;
-
 [Version]
 Signature="$Windows NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
-Provider=%ProviderName%
-CatalogFile=Mixman_DM2.cat
+Provider=%ManufacturerName%
+CatalogFile=Mixman_Filter.cat
 DriverVer=09/30/2004,1.0.0.0
 
 [SourceDisksNames]
@@ -87,7 +73,6 @@ KSCATEGORY_RENDER="{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
 KSCATEGORY_CAPTURE="{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
 Proxy.CLSID="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
 MidiDeviceName="mixmandm2"
-KSName_Midi="Midi"
 
 SERVICE_KERNEL_DRIVER=1
 SERVICE_DEMAND_START=3
@@ -96,9 +81,6 @@ REG_EXPAND_SZ=0x00020000
 REG_DWORD=0x00010001
 
 ;localizable
-ProviderName="TODO-Set-Provider"
-ManufacturerName="TODO-Set-Manufacturer"
+ManufacturerName="Fabrikam Inc."
 Mixman_DM2.DeviceDesc="Mixman DM2"
-Mixman_DM2.Reader.FriendlyName="Mixman_DM2 Source"
-
 cdname="Disk 1"
