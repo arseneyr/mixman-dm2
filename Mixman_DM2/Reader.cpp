@@ -44,8 +44,15 @@ MixmanDM2Reader::OnReadCompleted(
         return;
     }
 
+    for (UINT8 i = 0; i < DM2_MIDI_NUM_WHEELS; ++i) {
+        if (current->Wheels[i] != 0 ||
+            m_Previous.Wheels[i] != 0) {
+            HandleWheel(DM2_MIDI_NUM_SLIDERS + i, current->Wheels[i]);
+        }
+    }
+
     if (RtlCompareMemory(current, &m_Previous, sizeof(*current)) == sizeof(*current)) {
-        return;
+        goto Cleanup;
     }
 
     HandleButtons(current->Buttons);
@@ -55,12 +62,7 @@ MixmanDM2Reader::OnReadCompleted(
         }
     }
 
-    for (UINT8 i = 0; i < DM2_MIDI_NUM_WHEELS; ++i) {
-        if (current->Wheels[i] != m_Previous.Wheels[i]) {
-            HandleWheel(DM2_MIDI_NUM_SLIDERS + i, current->Wheels[i]);
-        }
-    }
-
+Cleanup:
     if (m_MidiPacketsCount) {
         m_Miniport->Notify(m_MidiPackets, m_MidiPacketsCount);
         m_MidiPacketsCount = 0;
