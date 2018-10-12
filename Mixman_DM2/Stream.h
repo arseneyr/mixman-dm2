@@ -11,7 +11,8 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
         POOL_TYPE       PoolType,
-        CMiniportDM2    *Miniport
+        CMiniportDM2    *Miniport,
+        BOOLEAN         Capture
     );
 
 class MixmanDM2RingBuffer {
@@ -66,12 +67,13 @@ private:
     MixmanDM2RingBuffer m_RingBuffer;
     KSSTATE m_State;
     CMiniportDM2 *m_Miniport;
+    BOOLEAN m_Capture;
 
 public:
     DECLARE_STD_UNKNOWN();
 
-    CMiniportDM2Stream(PUNKNOWN OuterUnknown, CMiniportDM2 *Miniport)
-        : CUnknown(OuterUnknown), m_Miniport(Miniport) {}
+    CMiniportDM2Stream(PUNKNOWN OuterUnknown, CMiniportDM2 *Miniport, BOOLEAN Capture)
+        : CUnknown(OuterUnknown), m_Miniport(Miniport), m_Capture(Capture) {}
 
     ~CMiniportDM2Stream();
 

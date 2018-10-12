@@ -61,8 +61,8 @@ PCPIN_DESCRIPTOR CMiniportDM2::PinDescriptors[]
             NULL,                                       // Interfaces
             0,                                          // MediumsCount
             NULL,                                       // Mediums
-            SIZEOF_ARRAY(MidiDataRangePointers),                   // DataRangesCount
-            MidiDataRangePointers,                                 // DataRanges
+            SIZEOF_ARRAY(MidiDataRangePointers),        // DataRangesCount
+            MidiDataRangePointers,                      // DataRanges
             KSPIN_DATAFLOW_OUT,                         // DataFlow
             KSPIN_COMMUNICATION_SINK,                   // Communication
             (GUID *)&KSCATEGORY_AUDIO,                  // Category
@@ -86,6 +86,40 @@ PCPIN_DESCRIPTOR CMiniportDM2::PinDescriptors[]
             NULL,                                       // Name
             0                                           // Reserved
         }
+    },
+    {
+        1,1,1,  // InstanceCount
+        NULL,   // AutomationTable
+        {       // KsPinDescriptor
+            0,                                          // InterfacesCount
+            NULL,                                       // Interfaces
+            0,                                          // MediumsCount
+            NULL,                                       // Mediums
+            SIZEOF_ARRAY(MidiDataRangePointers),        // DataRangesCount
+            MidiDataRangePointers,                      // DataRanges
+            KSPIN_DATAFLOW_IN,                          // DataFlow
+            KSPIN_COMMUNICATION_SINK,                 // Communication
+            (GUID *)&KSCATEGORY_AUDIO,                  // Category
+            NULL,                                       // Name
+            0                                           // Reserved
+        }
+    },
+    {
+        0,0,0,  // InstanceCount
+        NULL,   // AutomationTable
+        {       // KsPinDescriptor
+            0,                                          // InterfacesCount
+            NULL,                                       // Interfaces
+            0,                                          // MediumsCount
+            NULL,                                       // Mediums
+            SIZEOF_ARRAY(BridgeDataRangePointers),      // DataRangesCount
+            BridgeDataRangePointers,                    // DataRanges
+            KSPIN_DATAFLOW_OUT,                         // DataFlow
+            KSPIN_COMMUNICATION_NONE,                   // Communication
+            (GUID *)&KSCATEGORY_AUDIO,                  // Category
+            NULL,                                       // Name
+            0                                           // Reserved
+        }
     }
 };
 
@@ -96,12 +130,20 @@ PCNODE_DESCRIPTOR CMiniportDM2::Nodes[] =
         NULL,                   // AutomationTable
         &KSNODETYPE_SYNTHESIZER,// Type
         NULL                    // Name TODO: fill in with correct GUID
+    },
+    {
+        0,                      // Flags
+        NULL,                   // AutomationTable
+        &KSNODETYPE_SYNTHESIZER,// Type
+        NULL                    // Name TODO: fill in with correct GUID
     }
 };
 
 PCCONNECTION_DESCRIPTOR CMiniportDM2::Connections[] = {
     {PCFILTER_NODE, 1, 0, 1},
-    {0, 0, PCFILTER_NODE, 0}
+    {0, 0, PCFILTER_NODE, 0},
+    {PCFILTER_NODE, 2, 1, 1},
+    {1, 0, PCFILTER_NODE, 3}
 };
 
 GUID CMiniportDM2::MiniportCategories[] = {
@@ -621,14 +663,15 @@ CMiniportDM2::NewStream(
     UNREFERENCED_PARAMETER(DataFormat);
     UNREFERENCED_PARAMETER(PoolType);
 
-    if (Pin != 0 || !Capture) {
+    if (!(Pin == 0 && Capture ||
+        Pin == 2 && !Capture)) {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
     *ServiceGroup = m_ServiceGroup;
     m_ServiceGroup->AddRef();
 
-    status = CreateMiniportDM2Stream((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this);
+    status = CreateMiniportDM2Stream((PUNKNOWN*)Stream, CLSID_NULL, OuterUnknown, NonPagedPoolNx, this, Capture);
     if (NT_SUCCESS(status)) {
         AddStream(reinterpret_cast<CMiniportDM2Stream*>(*Stream));
     }

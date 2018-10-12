@@ -47,7 +47,7 @@
     <Inf Include="Mixman_Filter.inf" />
   </ItemGroup>
   <ItemGroup>
-    <FilesToPackage Include="C:\Users\4roma\Source\Repos\mixman-dm2\x64\Release\Mixman_Filter.sys">
+    <FilesToPackage Include="$(TargetPath)">
       <PackageRelativeDirectory>
       </PackageRelativeDirectory>
     </FilesToPackage>

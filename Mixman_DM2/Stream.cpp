@@ -9,14 +9,15 @@ _When_((PoolType&NonPagedPoolMustSucceed) != 0,
         REFCLSID        ClassID,
         PUNKNOWN        UnknownOuter,
         POOL_TYPE       PoolType,
-        CMiniportDM2    *Miniport
+        CMiniportDM2    *Miniport,
+        BOOLEAN         Capture
     )
 {
     NTSTATUS ntStatus;
 
     UNREFERENCED_PARAMETER(ClassID);
 
-    CMiniportDM2Stream *p = new(PoolType, DM2_POOL_TAG) CMiniportDM2Stream(UnknownOuter, Miniport);
+    CMiniportDM2Stream *p = new(PoolType, DM2_POOL_TAG) CMiniportDM2Stream(UnknownOuter, Miniport, Capture);
     if (p) {
         *Unknown = PUNKNOWN((PMINIPORTMIDISTREAM)(p));
         (*Unknown)->AddRef();
@@ -83,6 +84,10 @@ CMiniportDM2Stream::Read(
     PULONG BytesRead
 )
 {
+    if (!m_Capture) {
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
     if (BufferLength < sizeof(DM2_MIDI_PACKET)) {
         return STATUS_BUFFER_TOO_SMALL;
     }
@@ -106,11 +111,26 @@ CMiniportDM2Stream::Write(
     PULONG BytesWritten
 )
 {
-    UNREFERENCED_PARAMETER(BufferAddress);
-    UNREFERENCED_PARAMETER(BytesToWrite);
-    UNREFERENCED_PARAMETER(BytesWritten);
+    PDM2_MIDI_PACKET packet;
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    if (m_Capture) {
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    *BytesWritten = BytesToWrite;
+    if (BytesToWrite != sizeof(DM2_MIDI_PACKET)) {
+        return STATUS_SUCCESS;
+    }
+
+    packet = (PDM2_MIDI_PACKET)BufferAddress;
+    if (packet->Status == 0x90 &&
+        packet->Data1 < 16 &&
+        (packet->Data2 == 0x00 ||
+            packet->Data2 == 0x7F)) {
+        m_Miniport->SetSingleLed(packet->Data1, packet->Data2 == 0x7F);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS

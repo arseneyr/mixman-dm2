@@ -385,7 +385,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <FilesToPackage Include="C:\Users\4roma\Source\Repos\mixman-dm2\x64\Release\Mixman_DM2.sys">
+    <FilesToPackage Include="$(TargetPath)">
       <PackageRelativeDirectory>
       </PackageRelativeDirectory>
     </FilesToPackage>
