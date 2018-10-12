@@ -51,9 +51,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="Miniport.cpp" />
     <ClCompile Include="Driver.cpp" />
     <ClCompile Include="Reader.cpp" />
@@ -78,6 +75,7 @@
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <RootNamespace>Mixman_DM2</RootNamespace>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
@@ -178,6 +176,7 @@
     <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <SupportsPackaging>false</SupportsPackaging>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -312,6 +311,8 @@
       <WppRecorderEnabled>true</WppRecorderEnabled>
       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">trace.h</WppScanConfigurationData>
       <WppKernelMode>true</WppKernelMode>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);usbdex.lib;ntstrsafe.lib;portcls.lib;usbd.lib;stdunk.lib</AdditionalDependencies>
@@ -384,7 +385,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <FilesToPackage Include="C:\Users\4roma\Source\Repos\mixman-dm2\x64\Debug\Mixman_DM2.sys">
+    <FilesToPackage Include="C:\Users\4roma\Source\Repos\mixman-dm2\x64\Release\Mixman_DM2.sys">
       <PackageRelativeDirectory>
       </PackageRelativeDirectory>
     </FilesToPackage>
