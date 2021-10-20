@@ -1,11 +1,12 @@
 export const enum MIDIStatus {
-	Button = 144,
-	Slider = 176,
+	Button = 0x90,
+	LED = 0x90,
+	Slider = 0xB0,
 }
 
 export const enum ButtonVelocity {
 	Off = 0,
-	On = 127
+	On = 0x7F
 }
 
 export type ButtonId = number;
@@ -30,3 +31,9 @@ export type SliderStateType = {
 	[K in typeof SliderId[keyof typeof SliderId]]: number;
 };
 
+export const enum LedState {
+	Off = 0,
+	On = 0x7F
+}
+
+export const WHEEL_COUNT_PER_ROTATION = 3000;

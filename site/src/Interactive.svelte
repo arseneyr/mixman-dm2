@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import {
     ButtonId,
+    LedState,
     MIDIStatus,
     sliderDefaults,
     SliderId,
@@ -17,6 +18,7 @@
       buttons: {},
       sliders: sliderDefaults(),
     };
+  let enableLabels;
 
   function inputMessageHandler({ data }) {
     inputMessage = data;
@@ -32,6 +34,14 @@
     }
   }
 
+  function setLed(event: CustomEvent<{ id: number; state: boolean }>) {
+    outputPort.send([
+      MIDIStatus.LED,
+      event.detail.id,
+      event.detail.state ? LedState.On : LedState.Off,
+    ]);
+  }
+
   onMount(() => {
     inputPort.addEventListener("midimessage", inputMessageHandler);
 
@@ -40,4 +50,7 @@
   });
 </script>
 
-<div class="container">{inputMessage}<Diagram {states} /></div>
+<div class="container">
+  {inputMessage}<Diagram {states} on:setLed={setLed} {enableLabels} />
+  <input type="checkbox" bind:checked={enableLabels} />
+</div>

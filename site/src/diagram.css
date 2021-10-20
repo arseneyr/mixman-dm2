@@ -1,0 +1,43 @@
+#diagram {
+  height: auto;
+  width: 100%;
+}
+
+#diagram.no-labels .dm2-label {
+  display: none;
+}
+
+#diagram .dm2-button {
+  transition: fill 50ms;
+}
+
+#diagram .active-button .dm2-button,
+#diagram .active-button.dm2-button {
+  fill: rgb(230, 86, 110);
+  fill-opacity: 1;
+}
+#diagram [inkscape\:label^="wheel-"] {
+  transform-origin: center;
+  transform-box: fill-box;
+}
+#diagram [inkscape\:label="joystick-inner"],
+#diagram [inkscape\:label="slider-handle"] {
+  transform-box: fill-box;
+}
+
+#diagram .dm2-led-box {
+  pointer-events: all;
+  cursor: pointer;
+  stroke-width: 0;
+}
+
+#diagram.no-labels .dm2-led-icon {
+  display: unset;
+  pointer-events: none;
+  transition: fill 100ms, fill-opacity 100ms;
+}
+
+#diagram .dm2-led-icon.led-active {
+  fill: rgb(83, 253, 83);
+  fill-opacity: 1;
+}
