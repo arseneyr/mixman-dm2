@@ -14,7 +14,27 @@
     buttons: Record<ButtonId, boolean>;
     sliders: SliderStateType;
   };
+
   export let enableLabels = false;
+
+  let debouncers = {};
+
+  function createDebouncer(el: HTMLElement) {
+    let timer = null;
+    return () => {
+      timer && clearTimeout(timer);
+      el.classList.add("slider-active");
+      timer = setTimeout(() => el.classList.remove("slider-active"), 100);
+    };
+  }
+
+  function debounce(el: HTMLElement, key: string | number) {
+    if (!debouncers[key]) {
+      debouncers[key] = createDebouncer(el);
+    } else {
+      debouncers[key]();
+    }
+  }
 
   const ledStates = Array.from({ length: 16 }, () => false);
   const dispatch = createEventDispatcher();
@@ -22,7 +42,16 @@
     dispatch("setLed", { id, state: (ledStates[id] = !ledStates[id]) });
   }
 
-  $: ({ buttons, sliders } = states);
+  $: ({
+    buttons,
+    sliders: {
+      [SliderId.JoystickX]: joystickX,
+      [SliderId.JoystickY]: joystickY,
+      [SliderId.Slider]: slider,
+      [SliderId.WheelLeft]: wheelLeft,
+      [SliderId.WheelRight]: wheelRight,
+    },
+  } = states);
 
   let svgElement: SVGElement;
 
@@ -78,30 +107,38 @@
     }
   }
 
-  $: {
-    for (const [wheelNum, el] of Object.entries(wheelElements ?? {})) {
-      sliders[wheelNum] &&
-        el.style.setProperty(
-          "transform",
-          `rotate(${sliders[wheelNum] / WHEEL_COUNT_PER_ROTATION}turn)`
-        );
-    }
+  $: if (wheelElements) {
+    wheelElements[SliderId.WheelLeft].style.setProperty(
+      "transform",
+      `rotate(${wheelLeft / WHEEL_COUNT_PER_ROTATION}turn)`
+    );
+    debounce(wheelElements[SliderId.WheelLeft], SliderId.WheelLeft);
+  }
+
+  $: if (wheelElements) {
+    wheelElements[SliderId.WheelRight].style.setProperty(
+      "transform",
+      `rotate(${wheelRight / WHEEL_COUNT_PER_ROTATION}turn)`
+    );
+    debounce(wheelElements[SliderId.WheelRight], SliderId.WheelRight);
   }
 
   $: if (joystickInner) {
     joystickInner.style.setProperty(
       "transform",
       `translate(
-        ${((sliders[SliderId.JoystickX] - 64) / 64) * 40}%,
-        ${-((sliders[SliderId.JoystickY] - 64) / 64) * 40}%
+        ${((joystickX - 64) / 64) * 40}%,
+        ${-((joystickY - 64) / 64) * 40}%
       )`
     );
+    debounce(joystickInner, "joystick");
   }
   $: if (sliderHandle) {
     sliderHandle.style.setProperty(
       "transform",
-      `translateX(${((sliders[SliderId.Slider] - 64) / 64) * 130}%)`
+      `translateX(${((slider - 64) / 64) * 130}%)`
     );
+    debounce(sliderHandle, "slider");
   }
 </script>
 

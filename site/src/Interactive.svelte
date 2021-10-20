@@ -52,5 +52,14 @@
 
 <div class="container">
   {inputMessage}<Diagram {states} on:setLed={setLed} {enableLabels} />
-  <input type="checkbox" bind:checked={enableLabels} />
+  <label>
+    <input type="checkbox" bind:checked={enableLabels} />
+    <span class="label-body">Enable Labels</span>
+  </label>
 </div>
+
+<style>
+  .label-body {
+    user-select: none;
+  }
+</style>

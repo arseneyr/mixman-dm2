@@ -33,7 +33,7 @@ export type SliderStateType = {
 
 export const enum LedState {
 	Off = 0,
-	On = 0x7F
+	On = 0x7f
 }
 
 export const WHEEL_COUNT_PER_ROTATION = 3000;

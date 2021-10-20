@@ -41,3 +41,14 @@
   fill: rgb(83, 253, 83);
   fill-opacity: 1;
 }
+
+#diagram .dm2-slider {
+  transition-property: fill, stroke;
+  transition-duration: 0.5s;
+  transition-timing-function: ease-in-out;
+}
+
+#diagram .dm2-slider.slider-active {
+  fill: rgb(230, 86, 110);
+  stroke: rgb(230, 86, 110);
+}

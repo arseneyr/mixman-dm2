@@ -1,5 +1,5 @@
 <script lang="ts">
-  import App from "./Interactive.svelte";
+  import Interactive from "./Interactive.svelte";
 
   import "./normalize.css";
   import "./skeleton.css";
@@ -51,5 +51,5 @@
 {#if error}
   <h1>{error}</h1>
 {:else if inputPort && outputPort}
-  <App {inputPort} {outputPort} />
+  <Interactive {inputPort} {outputPort} />
 {/if}
