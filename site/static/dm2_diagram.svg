@@ -24,7 +24,8 @@
          stroke-dasharray: none;
          stroke-miterlimit: 4;
          stroke-width: 0.223978;
-         display: none;
+         /* display: none; */
+         opacity: 0;
       }
 
       .dm2-wheel {

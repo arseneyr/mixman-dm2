@@ -3,8 +3,14 @@
   width: 100%;
 }
 
+#diagram .dm2-label {
+  transition: opacity 200ms;
+}
+
 #diagram.no-labels .dm2-label {
-  display: none;
+  /* display: none; */
+  pointer-events: none;
+  opacity: 0;
 }
 
 #diagram .dm2-button {
@@ -31,10 +37,14 @@
   stroke-width: 0;
 }
 
+#diagram .dm2-led-icon {
+  transition: fill 100ms, fill-opacity 100ms, opacity 200ms;
+}
+
 #diagram.no-labels .dm2-led-icon {
-  display: unset;
+  /* display: unset; */
+  opacity: 1;
   pointer-events: none;
-  transition: fill 100ms, fill-opacity 100ms;
 }
 
 #diagram .dm2-led-icon.led-active {

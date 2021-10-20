@@ -51,15 +51,15 @@
 </script>
 
 <div class="container">
-  {inputMessage}<Diagram {states} on:setLed={setLed} {enableLabels} />
+  <Diagram {states} on:setLed={setLed} {enableLabels} />
   <label>
     <input type="checkbox" bind:checked={enableLabels} />
-    <span class="label-body">Enable Labels</span>
+    <span class="label-body">Show Labels</span>
   </label>
 </div>
 
 <style>
-  .label-body {
+  label {
     user-select: none;
   }
 </style>
