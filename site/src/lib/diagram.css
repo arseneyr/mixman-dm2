@@ -1,0 +1,64 @@
+#diagram {
+  height: auto;
+  width: 100%;
+}
+
+#diagram .dm2-label {
+  transition: opacity 200ms;
+}
+
+#diagram.no-labels .dm2-label {
+  /* display: none; */
+  pointer-events: none;
+  opacity: 0;
+}
+
+#diagram .dm2-button {
+  transition: fill 50ms;
+}
+
+#diagram .active-button .dm2-button,
+#diagram .active-button.dm2-button {
+  fill: rgb(230, 86, 110);
+  fill-opacity: 1;
+}
+#diagram [inkscape\:label^="wheel-"] {
+  transform-origin: center;
+  transform-box: fill-box;
+}
+#diagram [inkscape\:label="joystick-inner"],
+#diagram [inkscape\:label="slider-handle"] {
+  transform-box: fill-box;
+}
+
+#diagram .dm2-led-box {
+  pointer-events: all;
+  cursor: pointer;
+  stroke-width: 0;
+}
+
+#diagram .dm2-led-icon {
+  transition: fill 100ms, fill-opacity 100ms, opacity 200ms;
+}
+
+#diagram.no-labels .dm2-led-icon {
+  /* display: unset; */
+  opacity: 1;
+  pointer-events: none;
+}
+
+#diagram .dm2-led-icon.led-active {
+  fill: rgb(83, 253, 83);
+  fill-opacity: 1;
+}
+
+#diagram .dm2-slider {
+  transition-property: fill, stroke;
+  transition-duration: 0.5s;
+  transition-timing-function: ease-in-out;
+}
+
+#diagram .dm2-slider.slider-active {
+  fill: rgb(230, 86, 110);
+  stroke: rgb(230, 86, 110);
+}

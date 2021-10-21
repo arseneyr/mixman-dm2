@@ -32,7 +32,6 @@
     "@types/webmidi": "^2.0.6",
     "patch-package": "^6.4.7",
     "postinstall-postinstall": "^2.1.0",
-    "rollup-plugin-svelte-svg": "^1.0.0-beta.5",
-    "svelte2tsx": "^0.4.7"
+    "rollup-plugin-svelte-svg": "^1.0.0-beta.5"
   }
 }

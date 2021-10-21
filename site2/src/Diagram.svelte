@@ -2,7 +2,7 @@
   import "./diagram.css";
   import { createEventDispatcher } from "svelte";
 
-  import Svg from "../static/dm2_diagram.svg";
+  import Svg from "./dm2_diagram.svg";
   import {
     ButtonId,
     SliderId,
