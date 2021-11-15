@@ -3,7 +3,6 @@
 	import { fade } from 'svelte/transition';
 
 	export let message: SubheadingMessage | null;
-
 </script>
 
 <div class="container">
@@ -29,10 +28,10 @@
 	div.container {
 		position: relative;
 		width: 100%;
-		height: 3rem;
+		height: 5rem;
 	}
 	div.container > div {
 		position: absolute;
-		left: 0;
+		left: 4px;
 	}
 </style>

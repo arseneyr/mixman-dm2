@@ -9,11 +9,12 @@
 		SliderStateType
 	} from './constants';
 	import Diagram from './InteractiveDiagram.svelte';
+	import MessageList from './MessageList.svelte';
 
 	export let inputPort: WebMidi.MIDIInput, outputPort: WebMidi.MIDIOutput;
 	export let svgElement;
 
-	let inputMessage;
+	let messages = [];
 	let states: { buttons: Record<ButtonId, boolean>; sliders: SliderStateType } = {
 		buttons: {},
 		sliders: sliderDefaults()
@@ -25,25 +26,26 @@
 		: svgElement.classList.add('no-labels');
 
 	function inputMessageHandler({ data }) {
-		inputMessage = data;
-		const [status, id, velocity] = data;
+		const [status, noteId, velocity] = data;
 		if (status === MIDIStatus.Button) {
-			states.buttons[id] = velocity > 0;
+			states.buttons[noteId] = velocity > 0;
 		} else if (status === MIDIStatus.Slider) {
-			if (id === SliderId.WheelLeft || id === SliderId.WheelRight) {
-				states.sliders[id] += velocity - 64;
+			if (noteId === SliderId.WheelLeft || noteId === SliderId.WheelRight) {
+				states.sliders[noteId] += velocity - 64;
 			} else {
-				states.sliders[id] = velocity;
+				states.sliders[noteId] = velocity;
 			}
 		}
+		messages.unshift({ id: messages.length, sent: false, status, noteId, velocity });
+		messages = messages;
 	}
 
 	function setLed(event: CustomEvent<{ id: number; state: boolean }>) {
-		outputPort.send([
-			MIDIStatus.LED,
-			event.detail.id,
-			event.detail.state ? LedState.On : LedState.Off
-		]);
+		const noteId = event.detail.id;
+		const velocity = event.detail.state ? LedState.On : LedState.Off;
+		outputPort.send([MIDIStatus.LED, noteId, velocity]);
+		messages.unshift({ id: messages.length, sent: true, status: MIDIStatus.LED, noteId, velocity });
+		messages = messages;
 	}
 
 	onMount(() => {
@@ -61,9 +63,11 @@
 	<input type="checkbox" bind:checked={enableLabels} />
 	<span class="label-body">Show Labels</span>
 </label>
+<MessageList {messages} />
 
 <style>
 	label {
 		user-select: none;
+		padding-top: 8px;
 	}
 </style>

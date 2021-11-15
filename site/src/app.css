@@ -1,0 +1,17 @@
+@import './normalize.css';
+@import './skeleton.css';
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600&family=Space+Mono&display=swap');
+
+@media (prefers-color-scheme: dark) {
+	body,
+	html {
+		color: rgb(228, 228, 228);
+		background-color: #121212;
+	}
+}
+
+html,
+body,
+#svelte {
+	height: 100%;
+}

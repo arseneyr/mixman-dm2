@@ -5,8 +5,7 @@
 
 	import Interactive from '$lib/Interactive.svelte';
 
-	import '../normalize.css';
-	import '../skeleton.css';
+	import '../app.css';
 	import Subheading from '$lib/Subheading.svelte';
 	import { SubheadingMessage } from '$lib/constants';
 
@@ -56,11 +55,6 @@
 
 <svelte:head>
 	<title>Mixman DM2 Demo</title>
-	<link
-		href="//fonts.googleapis.com/css?family=Raleway:400,300,600"
-		rel="stylesheet"
-		type="text/css"
-	/>
 	<script>
 		document.documentElement.classList.add('js');
 	</script>
@@ -79,3 +73,14 @@
 		<Interactive {svgElement} {inputPort} {outputPort} />
 	{/if}
 </div>
+
+<style>
+	.container {
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+	:global(.container > *) {
+		flex-shrink: 0;
+	}
+</style>
