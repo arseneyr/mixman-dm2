@@ -25,6 +25,12 @@
 		? svgElement.classList.remove('no-labels')
 		: svgElement.classList.add('no-labels');
 
+	let messageId = 0;
+	function addToMessages(message) {
+		messages.unshift({ id: messageId++, ...message });
+		messages = messages.slice(0, 500);
+	}
+
 	function inputMessageHandler({ data }) {
 		const [status, noteId, velocity] = data;
 		if (status === MIDIStatus.Button) {
@@ -36,16 +42,14 @@
 				states.sliders[noteId] = velocity;
 			}
 		}
-		messages.unshift({ id: messages.length, sent: false, status, noteId, velocity });
-		messages = messages;
+		addToMessages({ sent: false, status, noteId, velocity });
 	}
 
 	function setLed(event: CustomEvent<{ id: number; state: boolean }>) {
 		const noteId = event.detail.id;
 		const velocity = event.detail.state ? LedState.On : LedState.Off;
 		outputPort.send([MIDIStatus.LED, noteId, velocity]);
-		messages.unshift({ id: messages.length, sent: true, status: MIDIStatus.LED, noteId, velocity });
-		messages = messages;
+		addToMessages({ sent: true, status: MIDIStatus.LED, noteId, velocity });
 	}
 
 	onMount(() => {
