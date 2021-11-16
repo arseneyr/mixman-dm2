@@ -1,5 +1,7 @@
 # mixman-dm2
 Windows 10 driver for the Mixman DM2 USB turntable
+## Demo
+[Try it out!](https://arseneyr.github.io/mixman-dm2) You can view MIDI mappings or install the driver and try a live demo on a [supported browser](https://caniuse.com/midi).
 ## Prerequisites
 You must be running an x64 version of Windows 10
 ## Installation
