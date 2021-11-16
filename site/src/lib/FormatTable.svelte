@@ -103,4 +103,7 @@
 	ul {
 		margin: 0;
 	}
+	table {
+		width: 100%;
+	}
 </style>
