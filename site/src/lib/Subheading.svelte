@@ -15,10 +15,10 @@
 	{:else if message === SubheadingMessage.NeverPluggedIn}
 		<div out:fade={{ duration: 100 }}>
 			Install the <a href="https://github.com/arseneyr/mixman-dm2">Windows 10 Mixman DM2 Driver</a> and
-			plug your turntable in to see a live demo!
+			plug in the turntable to see a live demo!
 		</div>
 	{:else if message === SubheadingMessage.Unplugged}
-		<div transition:fade={{ duration: 100 }}>Plug in your turntable to see a live demo!</div>
+		<div transition:fade={{ duration: 100 }}>Plug in the turntable to see a live demo!</div>
 	{:else if message === SubheadingMessage.PluggedIn}
 		<div transition:fade={{ duration: 100 }}><b>Connected to turntable!</b></div>
 	{/if}

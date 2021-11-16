@@ -2,7 +2,7 @@
 	import { afterUpdate, tick } from 'svelte';
 	import UploadArrow from './upload.svg';
 
-	import { MIDIStatus } from './constants';
+	import { MIDIStatus, toHexString } from './constants';
 
 	export let messages: {
 		id: number;
@@ -43,7 +43,7 @@
 						{/if}
 					</td>
 					<td>
-						<div class="mono">0x{message.status.toString(16).toUpperCase()}</div>
+						<div class="mono">{toHexString(message.status)}</div>
 						<div class="label">Status</div>
 					</td>
 					<td>
@@ -53,7 +53,7 @@
 						</div>
 					</td>
 					<td>
-						<div class="mono">0x{message.velocity.toString(16).toUpperCase().padStart(2, '0')}</div>
+						<div class="mono">{toHexString(message.velocity)}</div>
 						<div class="label">
 							{message.status === MIDIStatus.Slider || message.sent ? 'Data' : 'Velocity'}
 						</div>

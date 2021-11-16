@@ -46,3 +46,7 @@ export enum SubheadingMessage {
 	Unplugged,
 	PluggedIn
 }
+
+export function toHexString(num: number): string {
+	return '0x' + num.toString(16).toUpperCase().padStart(2, '0')
+}

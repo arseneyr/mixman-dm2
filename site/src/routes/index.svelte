@@ -8,6 +8,7 @@
 	import '../app.css';
 	import Subheading from '$lib/Subheading.svelte';
 	import { SubheadingMessage } from '$lib/constants';
+	import FormatTable from '$lib/FormatTable.svelte';
 
 	let webMidiSupported = browser && !!navigator.requestMIDIAccess;
 
@@ -71,6 +72,8 @@
 	<Svg id="diagram" bind:svg={svgElement} />
 	{#if svgElement && inputPort && outputPort}
 		<Interactive {svgElement} {inputPort} {outputPort} />
+	{:else}
+		<FormatTable />
 	{/if}
 </div>
 
