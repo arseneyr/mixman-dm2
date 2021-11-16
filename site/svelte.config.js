@@ -14,6 +14,9 @@ const config = {
 		adapter: adapterStatic(),
 		vite: {
 			plugins: [svelteSVG({ enforce: 'pre' })]
+		},
+		paths: {
+			base: '/mixman-dm2'
 		}
 	}
 };
