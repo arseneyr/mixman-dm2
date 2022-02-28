@@ -9,6 +9,7 @@ You must be running an x64 version of Windows 10
 2. To enable test-signing, run the following in an administrator command prompt and reboot:
   ```
   bcdedit -set testsigning on
+  bcdedit -set loadoptions DDISABLE_INTEGRITY_CHECKS
   ```
 3. Download the and unzip the [latest release](https://github.com/arseneyr/mixman-dm2/releases/latest)
 4. Right-click on `Mixman_Filter.inf` and select 'Install'
